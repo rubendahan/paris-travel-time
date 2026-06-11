@@ -52,6 +52,21 @@ out geom;
 """
 
 
+def waterway_query(bbox: tuple) -> str:
+    # river/canal CENTERLINES, drawn as thick strokes. Large rivers are
+    # multipolygon relations whose rings rarely close inside the bbox (the
+    # Seine vanished entirely when unclosed rings were dropped); centerline
+    # plus width is robust no matter how the area mapping is cut.
+    b = f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}"
+    return f"""
+[out:json][timeout:180];
+(
+  way["waterway"~"^(river|canal)$"]({b});
+);
+out geom;
+"""
+
+
 def bridge_query(bbox: tuple) -> str:
     # bridges cross water, tunnels cross rail land: both reopen the mask
     b = f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}"
@@ -137,18 +152,55 @@ class Grid:
         return x, y
 
 
+def assemble_rings(segments: list[list]) -> list[list]:
+    """Stitch way segments into closed rings by matching endpoints.
+
+    Relation members are PARTIAL boundary ways, not rings: filling each
+    segment as if it were a closed polygon (PIL auto-closes the path) painted
+    huge bogus water sheets across the city. Unclosable leftovers (boundary
+    cut by the bbox) are dropped.
+    """
+    segs = [list(s) for s in segments if len(s) >= 2]
+    rings: list[list] = []
+    while segs:
+        ring = segs.pop()
+        progress = True
+        while ring[0] != ring[-1] and progress:
+            progress = False
+            for i, s in enumerate(segs):
+                if s[0] == ring[-1]:
+                    ring += s[1:]
+                elif s[-1] == ring[-1]:
+                    ring += s[-2::-1]
+                elif s[-1] == ring[0]:
+                    ring = s[:-1] + ring
+                elif s[0] == ring[0]:
+                    ring = s[::-1][:-1] + ring
+                else:
+                    continue
+                segs.pop(i)
+                progress = True
+                break
+        if ring[0] == ring[-1] and len(ring) >= 4:
+            rings.append(ring)
+    return rings
+
+
 def geom_rings(el: dict) -> tuple[list, list]:
     """(outer rings, inner rings) of an Overpass element with geometry."""
     if el["type"] == "way":
         pts = [(g["lat"], g["lon"]) for g in el.get("geometry", [])]
-        return ([pts] if len(pts) >= 3 else []), []
-    outers, inners = [], []
+        # a standalone way must already be closed to be a polygon
+        if len(pts) >= 4 and pts[0] == pts[-1]:
+            return [pts], []
+        return [], []
+    outer_segs, inner_segs = [], []
     for m in el.get("members", []):
         pts = [(g["lat"], g["lon"]) for g in m.get("geometry", [])]
-        if len(pts) < 3:
+        if len(pts) < 2:
             continue
-        (inners if m.get("role") == "inner" else outers).append(pts)
-    return outers, inners
+        (inner_segs if m.get("role") == "inner" else outer_segs).append(pts)
+    return assemble_rings(outer_segs), assemble_rings(inner_segs)
 
 
 def main() -> None:
@@ -159,10 +211,14 @@ def main() -> None:
     grid = Grid()
     print(f"grid {grid.w} x {grid.h} cells of {CELL_M:.0f} m")
 
-    print("fetching water + railway land from Overpass (tiled, 2-6 min)...")
+    print("fetching water polygons from Overpass (tiled, 2-6 min)...")
     t0 = time.perf_counter()
     blocked_elements = fetch_tiled(water_query)
     print(f"  {len(blocked_elements):,} elements in {time.perf_counter() - t0:.0f}s")
+    print("fetching river/canal centerlines...")
+    t0 = time.perf_counter()
+    waterway_elements = fetch_tiled(waterway_query)
+    print(f"  {len(waterway_elements):,} waterways in {time.perf_counter() - t0:.0f}s")
     print("fetching pedestrian bridges...")
     t0 = time.perf_counter()
     bridge_elements = fetch_tiled(bridge_query)
@@ -183,6 +239,23 @@ def main() -> None:
         for ring in inners:  # islands stay walkable
             draw.polygon([grid.px(lat, lon) for lat, lon in ring], fill=1)
     print(f"  {n_drawn:,} blocking polygons drawn")
+
+    # rivers and canals as thick centerline strokes (width tag when sane,
+    # else a default per type); robust to bbox-cut area mapping
+    n_strokes = 0
+    for el in waterway_elements:
+        pts = [grid.px(g["lat"], g["lon"]) for g in el.get("geometry", [])]
+        if len(pts) < 2:
+            continue
+        tags = el.get("tags", {})
+        try:
+            width_m = float(str(tags.get("width", "")).replace(",", ".").split(";")[0])
+        except ValueError:
+            width_m = 160.0 if tags.get("waterway") == "river" else 35.0
+        width_m = min(max(width_m, 20.0), 400.0)
+        draw.line(pts, fill=0, width=max(1, round(width_m / CELL_M)))
+        n_strokes += 1
+    print(f"  {n_strokes:,} waterway strokes drawn")
 
     for el in bridge_elements:
         pts = [grid.px(g["lat"], g["lon"]) for g in el.get("geometry", [])]
