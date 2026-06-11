@@ -27,6 +27,8 @@ A few things I'm rather happy with:
 - 🎬 **Day animation.** Press ▶ and the departure time scrolls from 5:00 to midnight. Watching the suburbs turn red after the last RER is oddly satisfying.
 - 🚇 **Mode filters.** Untick "Bus" and see how much of the region quietly disappears. Spoiler: a lot.
 - 🧭 **Right-click for the itinerary.** The CSA already knows the optimal journey, so showing it costs nothing: lines, transfer times, walking legs, arrival time.
+- 🌊 **The Seine is real.** Isochrones do not swim: walking propagation honors an OSM-derived mask (water and rail yards blocked, bridges open), both for the colored bands and for the initial walk from your marker.
+- ⏰ **"Be there by" mode.** Flip from "leave at" to "arrive by" and the markers become destinations: the map shows the latest you can leave from anywhere (a reverse scan of the timetable).
 - 🔗 The whole view (markers, time, bounds, modes) lives in the URL, so you can send a link instead of a screenshot.
 
 <div align="center">
@@ -43,7 +45,7 @@ Nothing exotic, but the pieces fit together nicely.
 
 **Engine.** Earliest-arrival times are computed with the [Connection Scan Algorithm](https://arxiv.org/abs/1703.05997): a single linear sweep over the sorted connections, no priority queue, no graph in the usual sense. The scan is a sequential loop so numpy alone cannot help, but compiled with numba it runs the full one-to-all in 13 to 35 ms. The kernel also records predecessors, which is why itineraries come for free.
 
-**Rendering.** This part I borrowed from [tflmap](https://tflmap.onrender.com/), which does it for London: no isochrone polygons at all. Each reached stop gets a circle whose radius is the distance you can still walk in the remaining time of its color band (80 m/min). Some 28 000 opaque circles on a single canvas, the whole layer faded to 40% with CSS. The overlap of thousands of circles reads as a continuous heat map, et voilà. One hard-earned detail: the opacity must be applied per layer and never per circle, otherwise the alpha stacks up and you get saturated blobs (I know because I did it wrong first).
+**Rendering.** Started as tflmap-style circles (one per stop, radius = remaining walking distance), now proper smooth isochrones: the client rasterizes "minutes to reach this point" on a viewport grid and extracts polygons at the four bounds with marching squares (d3-contour). The walking part respects a 60 m **walkability mask** built from OpenStreetMap: water and railway land are blocked, the 12 000+ pedestrian bridges of the region are carved back in, and the propagation is a multi-source Dijkstra instead of a plain distance transform. Concretely: the colors stop at the Seine and only cross it on bridges, comme il se doit. One hard-earned detail survives from the circle era: layer opacity must be applied once per layer, never per shape, otherwise alpha stacks into saturated blobs.
 
 The backend contains zero Paris-specific code, by design. Point the download script at any GTFS zip and you get the same map for another city.
 

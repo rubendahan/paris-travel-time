@@ -46,3 +46,15 @@ export interface RouteResponse {
   arriveAt: string
   legs: RouteLeg[]
 }
+
+/** Walkability raster: 1 = walkable, water/rail blocked, bridges carved. */
+export interface Walkmask {
+  w: number
+  h: number
+  south: number
+  west: number
+  north: number
+  east: number
+  /** unpacked bits, row-major, row 0 = north */
+  data: Uint8Array
+}

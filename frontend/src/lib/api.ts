@@ -1,4 +1,4 @@
-import type { CombineMode, Direction, LatLng, RouteResponse, StopsCatalog, TransitMode, TravelTimeResult } from './types'
+import type { CombineMode, Direction, LatLng, RouteResponse, StopsCatalog, TransitMode, TravelTimeResult, Walkmask } from './types'
 import { ALL_MODES } from './types'
 import { MAX_TRAVEL_MINS } from './colors'
 
@@ -8,6 +8,17 @@ const API_BASE: string = import.meta.env.VITE_API_URL ?? '/api'
 function modesParam(modes: TransitMode[]): string | null {
   // omit the param when everything is enabled (the backend default)
   return modes.length === ALL_MODES.length ? null : modes.join(',')
+}
+
+export async function fetchWalkmask(): Promise<Walkmask | null> {
+  const res = await fetch(`${API_BASE}/walkmask`)
+  if (!res.ok) return null // mask is optional: crow-fly fallback
+  const j = await res.json()
+  const bytes = Uint8Array.from(atob(j.packedBits), (c) => c.charCodeAt(0))
+  const n = j.w * j.h
+  const data = new Uint8Array(n)
+  for (let i = 0; i < n; i++) data[i] = (bytes[i >> 3] >> (7 - (i & 7))) & 1
+  return { w: j.w, h: j.h, south: j.south, west: j.west, north: j.north, east: j.east, data }
 }
 
 export async function fetchStops(): Promise<StopsCatalog> {

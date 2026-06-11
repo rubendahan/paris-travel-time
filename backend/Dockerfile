@@ -6,6 +6,7 @@ COPY pyproject.toml ./
 COPY app ./app
 COPY ingest ./ingest
 COPY scripts ./scripts
+COPY assets ./assets
 
 RUN pip install --no-cache-dir .
 

@@ -6,7 +6,7 @@ import ControlsPanel from './components/ControlsPanel'
 import SearchBox from './components/SearchBox'
 import RoutePopup from './components/RoutePopup'
 import { useTravelTime } from './hooks/useTravelTime'
-import { fetchRoute, fetchStops } from './lib/api'
+import { fetchRoute, fetchStops, fetchWalkmask } from './lib/api'
 import { parseUrlState, writeUrlState } from './lib/urlState'
 import { MAX_SOURCES } from './lib/colors'
 import type {
@@ -17,6 +17,7 @@ import type {
   RouteResponse,
   StopsCatalog,
   TransitMode,
+  Walkmask,
 } from './lib/types'
 
 const ANIM_START = 5 * 60 // 05:00, in minutes
@@ -46,6 +47,7 @@ export default function App() {
   const [direction, setDirection] = useState<Direction>(initial.direction)
   const [playing, setPlaying] = useState(false)
   const [catalog, setCatalog] = useState<StopsCatalog | null>(null)
+  const [walkmask, setWalkmask] = useState<Walkmask | null>(null)
   const [routePopup, setRoutePopup] = useState<RoutePopupState | null>(null)
   const routeSeq = useRef(0)
 
@@ -53,6 +55,7 @@ export default function App() {
 
   useEffect(() => {
     fetchStops().then(setCatalog).catch(console.error)
+    fetchWalkmask().then(setWalkmask).catch(() => {}) // optional refinement
   }, [])
 
   useEffect(() => {
@@ -97,7 +100,7 @@ export default function App() {
   return (
     <div className="relative h-full">
       <MapView onMapClick={addSource} onMapContextMenu={showRoute}>
-        <IsochronesLayer catalog={catalog} result={data} bounds={bounds} />
+        <IsochronesLayer catalog={catalog} result={data} bounds={bounds} walkmask={walkmask} />
         <StartMarkers
           sources={sources}
           onMove={(i, pos) => setSources((prev) => prev.map((s, j) => (j === i ? pos : s)))}

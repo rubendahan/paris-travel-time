@@ -16,6 +16,7 @@ import numpy as np
 
 from app import config
 from app.core.geo import stops_within_radius
+from app.core.walkgrid import walk_seconds_from
 
 INF = np.int32(2**31 - 1)
 
@@ -144,10 +145,7 @@ def run_scan_reverse(
     trip_reached = np.zeros(network.n_trips, dtype=np.bool_)
 
     for lat, lon in destinations:
-        idx, dist = stops_within_radius(
-            lat, lon, config.MAX_SOURCE_WALK_M, network.stop_lats, network.stop_lons
-        )
-        walk_s = (dist / config.WALK_SPEED_M_PER_MIN * 60.0).astype(np.int32)
+        idx, walk_s = source_walks(network, lat, lon)
         t0 = arrive_secs - walk_s
         np.maximum.at(depart, idx, t0)
         np.maximum.at(alight, idx, t0)
@@ -182,6 +180,25 @@ class ScanResult:
         self.depart_secs = depart_secs
 
 
+def source_walks(
+    network, lat: float, lon: float
+) -> tuple[np.ndarray, np.ndarray]:
+    """(stop indices, walk seconds) from a coordinate to its nearby stops.
+
+    Mask-aware when the walkability raster covers the point (the river is
+    only crossable at bridges); crow-fly fallback otherwise.
+    """
+    idx, dist = stops_within_radius(
+        lat, lon, config.MAX_SOURCE_WALK_M, network.stop_lats, network.stop_lons
+    )
+    wm = getattr(network, "walkmask", None)
+    if wm is not None and idx.size:
+        masked = walk_seconds_from(wm, lat, lon, idx, network.stop_lats, network.stop_lons)
+        if masked is not None:
+            return masked
+    return idx, (dist / config.WALK_SPEED_M_PER_MIN * 60.0).astype(np.int32)
+
+
 def run_scan(
     network,
     sources: list[tuple[float, float]],
@@ -199,10 +216,7 @@ def run_scan(
     trip_board_conn = np.full(network.n_trips, -1, dtype=np.int32)
 
     for lat, lon in sources:
-        idx, dist = stops_within_radius(
-            lat, lon, config.MAX_SOURCE_WALK_M, network.stop_lats, network.stop_lons
-        )
-        walk_s = (dist / config.WALK_SPEED_M_PER_MIN * 60.0).astype(np.int32)
+        idx, walk_s = source_walks(network, lat, lon)
         t0 = depart_secs + walk_s
         np.minimum.at(arrival, idx, t0)
         np.minimum.at(board, idx, t0)

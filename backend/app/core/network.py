@@ -31,6 +31,7 @@ class Network:
     # derived at load time, for the reverse ("arrive by") scan
     order_arr_desc: np.ndarray = None  # connection indices by decreasing arr_time
     arr_sorted: np.ndarray = None  # arr_time sorted ascending
+    walkmask: object = None  # optional Walkmask (set by the app lifespan)
 
     @property
     def n_stops(self) -> int:

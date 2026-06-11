@@ -73,6 +73,19 @@ def stops(request: Request, response: Response) -> dict:
     }
 
 
+@router.get("/walkmask")
+def walkmask(request: Request, response: Response) -> dict:
+    wm = request.app.state.network.walkmask
+    if wm is None:
+        raise HTTPException(404, "no walkability mask available")
+    response.headers["Cache-Control"] = "public, max-age=86400"
+    return {
+        "w": wm.w, "h": wm.h, "cellM": wm.cell_m,
+        "south": wm.south, "west": wm.west, "north": wm.north, "east": wm.east,
+        "packedBits": wm.packed_b64,
+    }
+
+
 @router.get("/traveltime")
 def traveltime(
     request: Request,
