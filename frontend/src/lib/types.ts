@@ -21,6 +21,9 @@ export interface LatLng {
 /** Four ascending time bounds in minutes, e.g. [15, 30, 45, 60]. */
 export type Bounds = [number, number, number, number]
 
+/** depart = markers are origins; arrive = markers are destinations ("be there by"). */
+export type Direction = 'depart' | 'arrive'
+
 /** union = reachable from ANY marker; meet = time for EVERYONE to get there. */
 export type CombineMode = 'union' | 'meet'
 

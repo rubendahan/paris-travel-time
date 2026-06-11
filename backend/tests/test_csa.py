@@ -16,7 +16,9 @@ from app.core.csa import (
     MODE_BUS,
     MODE_METRO,
     MODE_RAIL,
+    NEG_INF,
     csa_scan,
+    csa_scan_reverse,
     mode_mask_from_names,
 )
 
@@ -110,6 +112,38 @@ def test_mode_mask_excludes_bus():
 def test_mode_mask_all_when_empty():
     assert mode_mask_from_names(None) == ALL_MODES_MASK
     assert mode_mask_from_names([]) == ALL_MODES_MASK
+
+
+def run_reverse(dest_stop: int, arrive: int, t_min: int = 0, mode_mask=ALL_MODES_MASK):
+    depart = np.full(N_STOPS, NEG_INF, dtype=np.int32)
+    alight = np.full(N_STOPS, NEG_INF, dtype=np.int32)
+    depart[dest_stop] = alight[dest_stop] = arrive
+    order_desc = np.argsort(ARR_TIME, kind="stable").astype(np.int32)[::-1].copy()
+    csa_scan_reverse(
+        order_desc, DEP_STOP, ARR_STOP, DEP_TIME, ARR_TIME, TRIP, CONN_MODE,
+        FP_INDPTR, FP_TARGET, FP_DUR,
+        depart, alight, np.zeros(N_TRIPS, dtype=np.bool_),
+        0, np.int32(t_min), np.int32(60), np.int32(mode_mask),
+    )
+    return depart
+
+
+def test_reverse_latest_departure():
+    depart = run_reverse(3, 1800)  # be at D by 1800
+    assert depart[1] == 1500  # last useful departure from B is trip 1
+    assert depart[0] == 1000  # ride trip 0 from A, transfer at B (alight 1440 >= 1300)
+
+
+def test_reverse_arrival_too_early_blocks():
+    depart = run_reverse(3, 1799)  # one second too early for trip 1
+    assert depart[1] == NEG_INF and depart[0] == NEG_INF
+
+
+def test_reverse_footpath():
+    depart = run_reverse(5, 2200)  # be at F by 2200
+    assert depart[4] == 1900  # board trip 2 at E
+    assert depart[2] == 1900 - 120  # walk C -> E before that
+    assert depart[0] == 1000  # whole chain back to A
 
 
 def test_predecessors_rebuild_journey():

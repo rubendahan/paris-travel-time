@@ -1,4 +1,4 @@
-import type { Bounds, CombineMode, LatLng, TransitMode } from './types'
+import type { Bounds, CombineMode, Direction, LatLng, TransitMode } from './types'
 import { ALL_MODES } from './types'
 
 export interface UrlState {
@@ -7,6 +7,7 @@ export interface UrlState {
   bounds: Bounds
   combine: CombineMode
   modes: TransitMode[]
+  direction: Direction
 }
 
 const DEFAULT_BOUNDS: Bounds = [15, 30, 45, 60]
@@ -34,15 +35,17 @@ export function parseUrlState(): UrlState {
   const tm = (q.get('tm') ?? '').split(',').filter((m): m is TransitMode =>
     (ALL_MODES as readonly string[]).includes(m),
   )
-  return { sources, departAt: at, bounds, combine, modes: tm.length ? tm : [...ALL_MODES] }
+  const direction: Direction = q.get('d') === 'arrive' ? 'arrive' : 'depart'
+  return { sources, departAt: at, bounds, combine, modes: tm.length ? tm : [...ALL_MODES], direction }
 }
 
-export function writeUrlState({ sources, departAt, bounds, combine, modes }: UrlState): void {
+export function writeUrlState({ sources, departAt, bounds, combine, modes, direction }: UrlState): void {
   const q = new URLSearchParams()
   if (sources.length) q.set('from', sources.map((s) => `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`).join('_'))
   q.set('at', departAt)
   q.set('b', bounds.join(','))
   if (combine === 'meet') q.set('mode', 'meet')
   if (modes.length && modes.length < ALL_MODES.length) q.set('tm', modes.join(','))
+  if (direction === 'arrive') q.set('d', 'arrive')
   history.replaceState(null, '', `?${q}`)
 }

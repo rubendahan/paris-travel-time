@@ -89,6 +89,86 @@ def csa_scan(
                             board[s2] = a2
 
 
+@njit(cache=True)
+def csa_scan_reverse(
+    order, dep_stop, arr_stop, dep_time, arr_time, trip, conn_mode,
+    fp_indptr, fp_target, fp_dur,
+    depart, alight, trip_reached,
+    start_pos, t_min, interchange_s, mode_mask,
+):
+    """Mirror of csa_scan on the time-reversed network: latest departure
+    from every stop to reach the initialized stops in time.
+
+    `order` indexes connections by DECREASING arr_time; `depart[s]` is the
+    latest time one can leave s (init -INF; destinations init to T - walk).
+    """
+    for k in range(start_pos, order.shape[0]):
+        i = order[k]
+        ta = arr_time[i]
+        if ta < t_min:  # sorted by decreasing arrival: nothing earlier helps
+            break
+        if ((mode_mask >> conn_mode[i]) & 1) == 0:
+            continue
+        tr = trip[i]
+        if trip_reached[tr] or alight[arr_stop[i]] >= ta:
+            trip_reached[tr] = True
+            td = dep_time[i]
+            s = dep_stop[i]
+            if td > depart[s]:
+                depart[s] = td
+                if td - interchange_s > alight[s]:
+                    alight[s] = td - interchange_s
+                for j in range(fp_indptr[s], fp_indptr[s + 1]):
+                    s2 = fp_target[j]
+                    t2 = td - fp_dur[j]
+                    if t2 > depart[s2]:
+                        depart[s2] = t2
+                        if t2 > alight[s2]:
+                            alight[s2] = t2
+
+
+NEG_INF = np.int32(-(2**31) + 1)
+
+
+def run_scan_reverse(
+    network,
+    destinations: list[tuple[float, float]],
+    arrive_secs: int,
+    max_mins: int = config.MAX_TRAVEL_MINS,
+    mode_mask: np.int32 = ALL_MODES_MASK,
+) -> np.ndarray:
+    """Latest-departure times (seconds) to reach any destination by arrive_secs."""
+    n_stops = network.n_stops
+    depart = np.full(n_stops, NEG_INF, dtype=np.int32)
+    alight = np.full(n_stops, NEG_INF, dtype=np.int32)
+    trip_reached = np.zeros(network.n_trips, dtype=np.bool_)
+
+    for lat, lon in destinations:
+        idx, dist = stops_within_radius(
+            lat, lon, config.MAX_SOURCE_WALK_M, network.stop_lats, network.stop_lons
+        )
+        walk_s = (dist / config.WALK_SPEED_M_PER_MIN * 60.0).astype(np.int32)
+        t0 = arrive_secs - walk_s
+        np.maximum.at(depart, idx, t0)
+        np.maximum.at(alight, idx, t0)
+
+    t_min = np.int32(arrive_secs - max_mins * 60)
+    # connections arriving after T occupy the head of the desc order: skip them
+    start_pos = network.n_connections - int(
+        np.searchsorted(network.arr_sorted, arrive_secs, side="right")
+    )
+
+    csa_scan_reverse(
+        network.order_arr_desc,
+        network.dep_stop, network.arr_stop, network.dep_time, network.arr_time,
+        network.trip, network.conn_mode,
+        network.fp_indptr, network.fp_target, network.fp_dur,
+        depart, alight, trip_reached,
+        start_pos, t_min, np.int32(config.INTERCHANGE_BUFFER_S), mode_mask,
+    )
+    return depart
+
+
 class ScanResult:
     """State of one CSA run, kept for journey extraction."""
 
@@ -148,15 +228,32 @@ def query_one_to_all(
     max_mins: int = config.MAX_TRAVEL_MINS,
     mode_mask: np.int32 = ALL_MODES_MASK,
     combine: str = "union",
+    direction: str = "depart",
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Travel times from sources.
+    """Travel times between the markers and every stop.
 
-    combine='union': reachable from ANY source (min) — one scan, sources merged.
-    combine='meet' : meeting-point view — time for EVERYONE to get there (max
-    over per-source scans); stops unreachable from any source are excluded.
+    direction='depart': markers are origins, earliest arrival everywhere.
+    direction='arrive': markers are destinations, latest departure from
+    everywhere to make it by the given time (reverse scan).
+
+    combine='union': ANY marker suffices (min travel time).
+    combine='meet' : EVERY marker must work (max over per-marker scans).
 
     Returns (stop_idx int32[], minutes float32[]).
     """
+    if direction == "arrive":
+        t_min = depart_secs - max_mins * 60
+        if combine == "meet" and len(sources) > 1:
+            depart = None
+            for src in sources:
+                d = run_scan_reverse(network, [src], depart_secs, max_mins, mode_mask)
+                depart = d if depart is None else np.minimum(depart, d)
+        else:
+            depart = run_scan_reverse(network, sources, depart_secs, max_mins, mode_mask)
+        reached = np.nonzero(depart >= t_min)[0]
+        minutes = ((depart_secs - depart[reached]) / 60.0).astype(np.float32)
+        return reached.astype(np.int32), minutes
+
     t_max = depart_secs + max_mins * 60
     if combine == "meet" and len(sources) > 1:
         arrival = None

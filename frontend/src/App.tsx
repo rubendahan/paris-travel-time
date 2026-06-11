@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import MapView from './components/MapView'
-import CirclesLayer from './components/CirclesLayer'
+import IsochronesLayer from './components/IsochronesLayer'
 import StartMarkers from './components/StartMarkers'
 import ControlsPanel from './components/ControlsPanel'
 import SearchBox from './components/SearchBox'
@@ -12,6 +12,7 @@ import { MAX_SOURCES } from './lib/colors'
 import type {
   Bounds,
   CombineMode,
+  Direction,
   LatLng,
   RouteResponse,
   StopsCatalog,
@@ -19,9 +20,15 @@ import type {
 } from './lib/types'
 
 const ANIM_START = 5 * 60 // 05:00, in minutes
-const ANIM_END = 24 * 60 // wrap back to 05:00 at midnight
+const ANIM_END = 26 * 60 // GTFS hours run past midnight: go up to 02:00 ("26:00")
 const ANIM_STEP_MIN = 30
 const ANIM_TICK_MS = 900
+
+/** GTFS-style times can exceed 24h ("25:30" = 1:30 AM); display them mod 24. */
+export function clockDisplay(at: string): string {
+  const [h, m] = at.split(':').map(Number)
+  return `${String(h % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
 
 interface RoutePopupState {
   pos: LatLng
@@ -36,20 +43,21 @@ export default function App() {
   const [bounds, setBounds] = useState<Bounds>(initial.bounds)
   const [combine, setCombine] = useState<CombineMode>(initial.combine)
   const [modes, setModes] = useState<TransitMode[]>(initial.modes)
+  const [direction, setDirection] = useState<Direction>(initial.direction)
   const [playing, setPlaying] = useState(false)
   const [catalog, setCatalog] = useState<StopsCatalog | null>(null)
   const [routePopup, setRoutePopup] = useState<RoutePopupState | null>(null)
   const routeSeq = useRef(0)
 
-  const { data, loading, error } = useTravelTime(sources, departAt, combine, modes)
+  const { data, loading, error } = useTravelTime(sources, departAt, combine, modes, direction)
 
   useEffect(() => {
     fetchStops().then(setCatalog).catch(console.error)
   }, [])
 
   useEffect(() => {
-    writeUrlState({ sources, departAt, bounds, combine, modes })
-  }, [sources, departAt, bounds, combine, modes])
+    writeUrlState({ sources, departAt, bounds, combine, modes, direction })
+  }, [sources, departAt, bounds, combine, modes, direction])
 
   // day animation: advance the departure time in 15-min steps
   useEffect(() => {
@@ -70,6 +78,10 @@ export default function App() {
 
   const showRoute = (pos: LatLng) => {
     if (!sources.length) return
+    if (direction === 'arrive') {
+      setRoutePopup({ pos, route: null, error: "L'itinéraire détaillé n'est disponible qu'en mode « Partir à »." })
+      return
+    }
     const seq = ++routeSeq.current
     setRoutePopup({ pos, route: null, error: null })
     fetchRoute(sources, departAt, pos, modes)
@@ -85,7 +97,7 @@ export default function App() {
   return (
     <div className="relative h-full">
       <MapView onMapClick={addSource} onMapContextMenu={showRoute}>
-        <CirclesLayer catalog={catalog} result={data} bounds={bounds} />
+        <IsochronesLayer catalog={catalog} result={data} bounds={bounds} />
         <StartMarkers
           sources={sources}
           onMove={(i, pos) => setSources((prev) => prev.map((s, j) => (j === i ? pos : s)))}
@@ -103,7 +115,7 @@ export default function App() {
 
       {playing && (
         <div className="pointer-events-none absolute bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-xl bg-gray-900/80 px-6 py-3 text-center text-white shadow-lg backdrop-blur">
-          <div className="text-4xl font-bold tabular-nums">{departAt}</div>
+          <div className="text-4xl font-bold tabular-nums">{clockDisplay(departAt)}</div>
           <div className="mt-0.5 text-xs tabular-nums opacity-80">
             {data ? `${data.idx.length.toLocaleString('fr-FR')} arrêts atteignables` : '…'}
           </div>
@@ -118,6 +130,8 @@ export default function App() {
           <ControlsPanel
             departAt={departAt}
             onDepartAtChange={setDepartAt}
+            direction={direction}
+            onDirectionChange={setDirection}
             bounds={bounds}
             onBoundsChange={setBounds}
             combine={combine}

@@ -1,4 +1,4 @@
-import type { CombineMode, LatLng, RouteResponse, StopsCatalog, TransitMode, TravelTimeResult } from './types'
+import type { CombineMode, Direction, LatLng, RouteResponse, StopsCatalog, TransitMode, TravelTimeResult } from './types'
 import { ALL_MODES } from './types'
 import { MAX_TRAVEL_MINS } from './colors'
 
@@ -21,12 +21,14 @@ export async function fetchTravelTime(
   at: string,
   combine: CombineMode,
   modes: TransitMode[],
+  direction: Direction,
   signal: AbortSignal,
 ): Promise<TravelTimeResult> {
   const params = new URLSearchParams()
   for (const s of sources) params.append('from', `${s.lat.toFixed(6)},${s.lng.toFixed(6)}`)
   params.set('at', at)
   params.set('max', String(MAX_TRAVEL_MINS))
+  if (direction === 'arrive') params.set('dir', 'arrive')
   if (combine === 'meet' && sources.length > 1) params.set('mode', 'meet')
   const m = modesParam(modes)
   if (m) params.set('modes', m)

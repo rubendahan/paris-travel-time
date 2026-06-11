@@ -1,0 +1,10 @@
+﻿import { chromium } from 'playwright'
+const browser = await chromium.launch()
+const page = await browser.newPage({ viewport: { width: 1600, height: 900 } })
+await page.goto('http://localhost:5173/?from=48.8588,2.3470&at=22:30', { waitUntil: 'networkidle', timeout: 60000 })
+await page.waitForSelector('text=arrêts atteignables', { timeout: 60000 })
+await page.locator('button[title*="Animer"]').click()
+await page.waitForTimeout(2200)
+await page.screenshot({ path: 'smoke-anim.png' })
+console.log('CLOCK:', (await page.locator('.text-4xl').textContent()))
+await browser.close()

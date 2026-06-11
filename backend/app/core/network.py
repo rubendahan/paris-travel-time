@@ -28,6 +28,9 @@ class Network:
     stop_lats: np.ndarray
     stop_lons: np.ndarray
     meta: dict
+    # derived at load time, for the reverse ("arrive by") scan
+    order_arr_desc: np.ndarray = None  # connection indices by decreasing arr_time
+    arr_sorted: np.ndarray = None  # arr_time sorted ascending
 
     @property
     def n_stops(self) -> int:
@@ -66,6 +69,9 @@ def load_network(data_dir: Path) -> Network:
         stop_lons=stops.column("lon").to_numpy(),
         meta=meta,
     )
+    order_asc = np.argsort(net.arr_time, kind="stable").astype(np.int32)
+    net.arr_sorted = net.arr_time[order_asc]
+    net.order_arr_desc = order_asc[::-1].copy()
     print(
         f"network loaded: {net.n_stops} stops, {net.n_connections} connections, "
         f"{net.fp_target.shape[0]} footpaths, service date {meta['service_date']} "

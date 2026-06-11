@@ -81,6 +81,7 @@ def traveltime(
     max_mins: int = Query(default=config.MAX_TRAVEL_MINS, alias="max", ge=5, le=config.MAX_TRAVEL_MINS),
     mode: str = Query(default="union", pattern="^(union|meet)$"),
     modes: str | None = None,
+    dir: str = Query(default="depart", pattern="^(depart|arrive)$"),
     date: str | None = None,
 ) -> dict:
     net = request.app.state.network
@@ -92,7 +93,9 @@ def traveltime(
     mode_mask = parse_modes(modes)
 
     t0 = time.perf_counter()
-    idx, minutes = query_one_to_all(net, sources, depart_secs, max_mins, mode_mask, combine=mode)
+    idx, minutes = query_one_to_all(
+        net, sources, depart_secs, max_mins, mode_mask, combine=mode, direction=dir
+    )
     return {
         "departAt": at,
         "serviceDate": net.meta["service_date"],
@@ -109,12 +112,15 @@ def route(
     to: str = Query(),
     at: str = "08:30",
     modes: str | None = None,
+    dir: str = Query(default="depart", pattern="^(depart|arrive)$"),
 ) -> dict:
     """Fastest journey from the sources to an arbitrary clicked point.
 
     Picks the stop near `to` minimizing arrival + final walk, then rebuilds
     the journey from the CSA predecessor chain.
     """
+    if dir == "arrive":
+        raise HTTPException(422, "l'itinéraire détaillé n'est disponible qu'en mode départ")
     net = request.app.state.network
     depart_secs = parse_at(at)
     sources = parse_sources(from_)

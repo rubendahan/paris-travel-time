@@ -1,5 +1,6 @@
-import type { Bounds, CombineMode, TransitMode, TravelTimeResult } from '../lib/types'
+import type { Bounds, CombineMode, Direction, TransitMode, TravelTimeResult } from '../lib/types'
 import { ALL_MODES } from '../lib/types'
+import { clockDisplay } from '../App'
 import BoundsSliders from './BoundsSliders'
 
 const MODE_LABELS: Record<TransitMode, string> = {
@@ -12,6 +13,8 @@ const MODE_LABELS: Record<TransitMode, string> = {
 export default function ControlsPanel({
   departAt,
   onDepartAtChange,
+  direction,
+  onDirectionChange,
   bounds,
   onBoundsChange,
   combine,
@@ -27,6 +30,8 @@ export default function ControlsPanel({
 }: {
   departAt: string
   onDepartAtChange: (v: string) => void
+  direction: Direction
+  onDirectionChange: (d: Direction) => void
   bounds: Bounds
   onBoundsChange: (b: Bounds) => void
   combine: CombineMode
@@ -55,11 +60,18 @@ export default function ControlsPanel({
       )}
 
       <div className="mb-2 flex items-center justify-between gap-2">
-        <label className="flex items-center gap-2 text-xs text-gray-700">
-          Départ à
+        <label className="flex items-center gap-1 text-xs text-gray-700">
+          <select
+            value={direction}
+            onChange={(e) => onDirectionChange(e.target.value as Direction)}
+            className="rounded border border-gray-300 px-1 py-1 text-xs"
+          >
+            <option value="depart">Partir à</option>
+            <option value="arrive">Arriver à</option>
+          </select>
           <input
             type="time"
-            value={departAt}
+            value={clockDisplay(departAt)}
             onChange={(e) => e.target.value && onDepartAtChange(e.target.value)}
             className="rounded border border-gray-300 px-2 py-1 text-sm"
           />
