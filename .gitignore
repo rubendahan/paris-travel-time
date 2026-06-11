@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+backend/data/
+node_modules/
+dist/
+.env
+smoke*.png
+docs/*.aux
+docs/*.log
+docs/*.toc
+docs/*.out
