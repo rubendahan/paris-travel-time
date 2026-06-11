@@ -126,10 +126,12 @@ export default function App() {
       )}
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex items-start justify-between gap-2 p-3">
-        <div className="pointer-events-auto">
+        {/* -m/p halo: near-miss clicks around the controls are absorbed
+            instead of falling through to the map and dropping a marker */}
+        <div className="pointer-events-auto -m-3 p-3">
           <SearchBox onSelect={addSource} />
         </div>
-        <div className="pointer-events-auto">
+        <div className="pointer-events-auto -m-3 p-3">
           <ControlsPanel
             departAt={departAt}
             onDepartAtChange={setDepartAt}
