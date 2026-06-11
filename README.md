@@ -85,6 +85,20 @@ npm run dev        # → http://localhost:5173
 | Réponse `/traveltime` (~28 500 arrêts, gzip) | 110 ko |
 | Rendu de ~28 000 cercles (canvas) | 100–300 ms |
 
+## ☁️ Déployer (Render, gratuit)
+
+Le repo contient un blueprint [`render.yaml`](render.yaml) qui décrit les deux services :
+l'API (Docker — le réseau GTFS est téléchargé et précompilé **pendant le build de l'image**,
+donc rafraîchi à chaque déploiement) et le frontend statique.
+
+1. Sur [render.com](https://render.com) : **New → Blueprint**, connecter ce repo GitHub
+2. Render crée `paris-travel-time-api` (web, Docker) et `paris-travel-time` (statique)
+3. C'est tout — le site est sur `https://paris-travel-time.onrender.com`
+
+> ⚠️ Offre gratuite : l'API s'endort après 15 min d'inactivité (premier chargement ~1 min),
+> et si les noms de services sont déjà pris, adapter les deux URLs dans `render.yaml`
+> (`CORS_ORIGINS` côté API, `VITE_API_URL` côté frontend).
+
 ## 📚 Pour aller plus loin
 
 - [`docs/rapport.pdf`](docs/rapport.pdf) — rapport technique complet (11 pages) : rétro-ingénierie de l'application originale, algorithme, choix d'architecture, mesures.

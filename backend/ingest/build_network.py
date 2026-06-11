@@ -101,7 +101,8 @@ def read_active_trips(
 
 
 def build_connections(
-    zf: zipfile.ZipFile, trip_code: dict[str, int], stop_idx: dict[str, int]
+    zf: zipfile.ZipFile, trip_code: dict[str, int], stop_idx: dict[str, int],
+    chunksize: int = 5_000_000,
 ) -> tuple[np.ndarray, ...]:
     parts = []
     with zf.open("stop_times.txt") as f:
@@ -109,7 +110,7 @@ def build_connections(
             io.TextIOWrapper(f, encoding="utf-8-sig"),
             usecols=["trip_id", "stop_id", "arrival_time", "departure_time", "stop_sequence"],
             dtype={"trip_id": str, "stop_id": str, "arrival_time": str, "departure_time": str, "stop_sequence": np.int32},
-            chunksize=5_000_000, low_memory=False,
+            chunksize=chunksize, low_memory=False,
         )
         for chunk in reader:
             chunk = chunk[chunk["trip_id"].isin(trip_code.keys())]
@@ -244,12 +245,25 @@ def build_footpaths(
     return indptr, tgts, durs_a
 
 
+def next_weekday(weekday: int = 1) -> dt.date:
+    """Next occurrence of `weekday` (0=Monday, 1=Tuesday) at least 2 days out."""
+    today = dt.date.today()
+    delta = (weekday - today.weekday()) % 7
+    return today + dt.timedelta(days=delta if delta >= 2 else delta + 7)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--gtfs", type=Path, required=True)
-    ap.add_argument("--date", type=dt.date.fromisoformat, required=True)
+    ap.add_argument("--date", type=dt.date.fromisoformat, default=None,
+                    help="service date (default: next Tuesday)")
     ap.add_argument("--out", type=Path, default=Path(__file__).resolve().parent.parent / "data")
+    ap.add_argument("--chunksize", type=int, default=5_000_000,
+                    help="stop_times rows per chunk (lower = less RAM)")
     args = ap.parse_args()
+    if args.date is None:
+        args.date = next_weekday()
+        print(f"no --date given, using next Tuesday: {args.date}")
 
     t0 = time.perf_counter()
     with zipfile.ZipFile(args.gtfs) as zf:
@@ -263,7 +277,9 @@ def main() -> None:
         print(f"  {len(trip_code):,} active trips")
 
         print("building connections (this is the slow part)...")
-        dep_stop, arr_stop, dep_time, arr_time, trip = build_connections(zf, trip_code, stop_idx)
+        dep_stop, arr_stop, dep_time, arr_time, trip = build_connections(
+            zf, trip_code, stop_idx, args.chunksize
+        )
         print(f"  {len(dep_stop):,} connections")
 
         print("building footpaths...")

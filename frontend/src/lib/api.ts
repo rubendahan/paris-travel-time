@@ -2,13 +2,16 @@ import type { CombineMode, LatLng, RouteResponse, StopsCatalog, TransitMode, Tra
 import { ALL_MODES } from './types'
 import { MAX_TRAVEL_MINS } from './colors'
 
+// dev: Vite proxies /api -> :8000; prod: VITE_API_URL points at the deployed API
+const API_BASE: string = import.meta.env.VITE_API_URL ?? '/api'
+
 function modesParam(modes: TransitMode[]): string | null {
   // omit the param when everything is enabled (the backend default)
   return modes.length === ALL_MODES.length ? null : modes.join(',')
 }
 
 export async function fetchStops(): Promise<StopsCatalog> {
-  const res = await fetch('/api/stops')
+  const res = await fetch(`${API_BASE}/stops`)
   if (!res.ok) throw new Error(`GET /stops failed: ${res.status}`)
   return res.json()
 }
@@ -27,7 +30,7 @@ export async function fetchTravelTime(
   if (combine === 'meet' && sources.length > 1) params.set('mode', 'meet')
   const m = modesParam(modes)
   if (m) params.set('modes', m)
-  const res = await fetch(`/api/traveltime?${params}`, { signal })
+  const res = await fetch(`${API_BASE}/traveltime?${params}`, { signal })
   if (!res.ok) throw new Error(`GET /traveltime failed: ${res.status}`)
   return res.json()
 }
@@ -44,7 +47,7 @@ export async function fetchRoute(
   params.set('to', `${to.lat.toFixed(6)},${to.lng.toFixed(6)}`)
   const m = modesParam(modes)
   if (m) params.set('modes', m)
-  const res = await fetch(`/api/route?${params}`)
+  const res = await fetch(`${API_BASE}/route?${params}`)
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     throw new Error(body?.detail ?? `GET /route failed: ${res.status}`)

@@ -1,0 +1,21 @@
+# Render blueprint: deploy both services with "New > Blueprint" on render.com
+services:
+  - type: web
+    name: paris-travel-time-api
+    runtime: docker
+    rootDir: backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: CORS_ORIGINS
+        value: https://paris-travel-time.onrender.com
+
+  - type: web
+    name: paris-travel-time
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    envVars:
+      - key: VITE_API_URL
+        value: https://paris-travel-time-api.onrender.com

@@ -15,4 +15,7 @@ FOOTPATH_MIN_DUR_S = 60
 SAME_PARENT_TRANSFER_S = 180
 DEFAULT_TRANSFER_S = 120
 
-CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+# extra origins (e.g. the deployed frontend) via env: CORS_ORIGINS=https://site1,https://site2
+CORS_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"] + [
+    o for o in os.environ.get("CORS_ORIGINS", "").split(",") if o
+]
