@@ -18,7 +18,18 @@ export async function fetchWalkmask(): Promise<Walkmask | null> {
   const n = j.w * j.h
   const data = new Uint8Array(n)
   for (let i = 0; i < n; i++) data[i] = (bytes[i >> 3] >> (7 - (i & 7))) & 1
-  return { w: j.w, h: j.h, south: j.south, west: j.west, north: j.north, east: j.east, data }
+  // summed-area table: walkable-fraction of any rectangle in O(1), used to
+  // sample the mask without aliasing when viewport cells are coarser
+  const w1 = j.w + 1
+  const sat = new Uint32Array(w1 * (j.h + 1))
+  for (let y = 0; y < j.h; y++) {
+    let row = 0
+    for (let x = 0; x < j.w; x++) {
+      row += data[y * j.w + x]
+      sat[(y + 1) * w1 + (x + 1)] = sat[y * w1 + (x + 1)] + row
+    }
+  }
+  return { w: j.w, h: j.h, south: j.south, west: j.west, north: j.north, east: j.east, data, sat }
 }
 
 export async function fetchStops(): Promise<StopsCatalog> {

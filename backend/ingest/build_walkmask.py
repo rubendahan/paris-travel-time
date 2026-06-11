@@ -22,7 +22,7 @@ from PIL import Image, ImageDraw
 
 # south, west, north, east — covers the GTFS network's useful extent
 BBOX = (48.40, 1.60, 49.10, 3.20)
-CELL_M = 60.0
+CELL_M = 30.0
 MIN_WATER_M2 = 10_000  # ignore village ponds
 # full-IDF queries 504 on the main instance: fetch per tile, with fallbacks
 OVERPASS_SERVERS = [
@@ -35,6 +35,10 @@ TILES = 2  # split the bbox into TILES x TILES sub-queries
 OUT = Path(__file__).resolve().parent.parent / "assets" / "walkmask.npz"
 
 def water_query(bbox: tuple) -> str:
+    # water ONLY. An earlier version also blocked landuse=railway, but rail
+    # corridors are crossed by plenty of untagged street bridges and the
+    # result read as incomprehensible holes in the middle of neighborhoods.
+    # Water is the one barrier everyone understands.
     b = f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}"
     return f"""
 [out:json][timeout:180];
@@ -43,18 +47,19 @@ def water_query(bbox: tuple) -> str:
   relation["natural"="water"]({b});
   way["waterway"="riverbank"]({b});
   relation["waterway"="riverbank"]({b});
-  way["landuse"="railway"]({b});
 );
 out geom;
 """
 
 
 def bridge_query(bbox: tuple) -> str:
+    # bridges cross water, tunnels cross rail land: both reopen the mask
     b = f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}"
     return f"""
 [out:json][timeout:180];
 (
   way["bridge"]["highway"]["highway"!~"motorway|motorway_link|trunk|trunk_link"]["foot"!~"no"]({b});
+  way["tunnel"]["highway"]["highway"!~"motorway|motorway_link|trunk|trunk_link"]["foot"!~"no"]({b});
 );
 out geom;
 """
@@ -184,6 +189,21 @@ def main() -> None:
         if len(pts) >= 2:
             draw.line(pts, fill=1, width=2)
     print(f"  {len(bridge_elements):,} bridges carved")
+
+    # every GTFS stop must live on a walkable cell (platforms often sit in
+    # the middle of blocked railway land)
+    stops_pq = Path(__file__).resolve().parent.parent / "data" / "stops.parquet"
+    if stops_pq.exists():
+        import pyarrow.parquet as pq
+
+        stops = pq.read_table(stops_pq)
+        carved = 0
+        for lat, lon in zip(stops.column("lat").to_numpy(), stops.column("lon").to_numpy()):
+            if BBOX[0] <= lat <= BBOX[2] and BBOX[1] <= lon <= BBOX[3]:
+                x, y = grid.px(lat, lon)
+                draw.point((x, y), fill=1)
+                carved += 1
+        print(f"  {carved:,} stop cells carved")
 
     mask = np.asarray(img, dtype=np.uint8)
     walkable_pct = 100.0 * mask.mean()

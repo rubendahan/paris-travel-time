@@ -46,7 +46,8 @@ export default function IsochronesLayer({
   useEffect(() => {
     if (!paneReady.current) {
       const pane = map.createPane('heatmap')
-      pane.style.opacity = '0.4'
+      pane.style.opacity = '0.45'
+      pane.style.zIndex = '350' // above base tiles, below the labels pane
       pane.style.pointerEvents = 'none'
       paneReady.current = true
     }
@@ -74,7 +75,14 @@ export default function IsochronesLayer({
   return null
 }
 
-/** Sample the walkability mask (bilinear-free nearest lookup) for a grid. */
+/**
+ * Sample the walkability mask for a viewport grid.
+ *
+ * A cell is blocked when LESS THAN HALF of its footprint is walkable
+ * (box average via the summed-area table). Center-point sampling caused
+ * speckle at low zoom: a pond under the cell center blocked a whole
+ * 300 m cell while its twin neighbour stayed open.
+ */
 function blockedForGrid(
   wm: Walkmask,
   W: number,
@@ -85,15 +93,26 @@ function blockedForGrid(
   mPerDegLon: number,
 ): Uint8Array {
   const blocked = new Uint8Array(W * H) // 0 = walkable
+  const w1 = wm.w + 1
+  const maskCellLat = (wm.north - wm.south) / wm.h
+  const maskCellLon = (wm.east - wm.west) / wm.w
+  const halfLat = Math.max(((cellM / 2) * 1) / M_PER_DEG_LAT, maskCellLat / 2)
+  const halfLon = Math.max(cellM / 2 / mPerDegLon, maskCellLon / 2)
   for (let y = 0; y < H; y++) {
     const lat = north - ((y + 0.5) * cellM) / M_PER_DEG_LAT
     if (lat < wm.south || lat > wm.north) continue // outside mask: walkable
-    const my = Math.min(wm.h - 1, Math.floor(((wm.north - lat) / (wm.north - wm.south)) * wm.h))
+    const my0 = Math.max(0, Math.floor(((wm.north - (lat + halfLat)) / (wm.north - wm.south)) * wm.h))
+    const my1 = Math.min(wm.h, Math.ceil(((wm.north - (lat - halfLat)) / (wm.north - wm.south)) * wm.h))
     for (let x = 0; x < W; x++) {
       const lon = west + ((x + 0.5) * cellM) / mPerDegLon
       if (lon < wm.west || lon > wm.east) continue
-      const mx = Math.min(wm.w - 1, Math.floor(((lon - wm.west) / (wm.east - wm.west)) * wm.w))
-      if (!wm.data[my * wm.w + mx]) blocked[y * W + x] = 1
+      const mx0 = Math.max(0, Math.floor(((lon - halfLon - wm.west) / (wm.east - wm.west)) * wm.w))
+      const mx1 = Math.min(wm.w, Math.ceil(((lon + halfLon - wm.west) / (wm.east - wm.west)) * wm.w))
+      const area = (my1 - my0) * (mx1 - mx0)
+      if (area <= 0) continue
+      const walkable =
+        wm.sat[my1 * w1 + mx1] - wm.sat[my0 * w1 + mx1] - wm.sat[my1 * w1 + mx0] + wm.sat[my0 * w1 + mx0]
+      if (walkable * 2 < area) blocked[y * W + x] = 1
     }
   }
   return blocked

@@ -35,6 +35,10 @@ A few things I'm rather happy with:
 <img src="docs/features.png" alt="Meeting mode, mode filters and an itinerary popup" width="85%"/>
 
 *Meeting mode with two markers, buses disabled, itinerary on right-click.*
+
+<img src="docs/seine.png" alt="Isochrones stopping at the Seine, crossing on bridges" width="85%"/>
+
+*Zoomed in: the bands stop at the Seine and only cross it where a bridge exists.*
 </div>
 
 ## How it works

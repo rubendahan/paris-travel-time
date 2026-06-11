@@ -57,4 +57,6 @@ export interface Walkmask {
   east: number
   /** unpacked bits, row-major, row 0 = north */
   data: Uint8Array
+  /** summed-area table of `data`, (w+1)*(h+1), for box-average sampling */
+  sat: Uint32Array
 }

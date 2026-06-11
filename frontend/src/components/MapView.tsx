@@ -1,4 +1,4 @@
-import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet'
+import { MapContainer, Pane, TileLayer, useMapEvents } from 'react-leaflet'
 import type { ReactNode } from 'react'
 import type { LatLng } from '../lib/types'
 
@@ -49,10 +49,16 @@ export default function MapView({
       className="h-full w-full"
       zoomControl={false}
     >
+      {/* base WITHOUT labels: building texture stays under the bands, while
+          street/place names render in a pane ABOVE them (crisp and readable,
+          and gray blocks no longer read as fake holes through the colors) */}
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+        url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
       />
+      <Pane name="labels" style={{ zIndex: 450, pointerEvents: 'none' }}>
+        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png" />
+      </Pane>
       <ClickHandler onClick={onMapClick} onContextMenu={onMapContextMenu} />
       {children}
     </MapContainer>
