@@ -2,109 +2,100 @@
 
 # 🗺️ Paris Travel Time
 
-**Carte isochrone des transports en commun d'Île-de-France.**
-Cliquez n'importe où : la carte se colore selon le temps de trajet réel, vers les 36 000 arrêts du réseau, en ~15 millisecondes.
+**How far can you actually go in 30 minutes of public transport?**
+
+Click anywhere on the map and find out. Works for all of Île-de-France: métro, RER, Transilien, trams, and the 1500-ish bus lines nobody can keep track of.
 
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
-![numba](https://img.shields.io/badge/numba-JIT-00A3E0)
-![GTFS](https://img.shields.io/badge/GTFS-g%C3%A9n%C3%A9rique-orange)
+![GTFS](https://img.shields.io/badge/data-GTFS-orange)
 
-<img src="docs/hero.png" alt="Heatmap depuis Châtelet à 8h30" width="85%"/>
+<img src="docs/hero.png" alt="Travel times from Châtelet, 8:30 on a Tuesday" width="85%"/>
 
-*Depuis Châtelet un mardi à 8h30 — vert < 15 min, jaune < 30, orange < 45, rouge < 60.*
+*From Châtelet on a Tuesday at 8:30. Green is under 15 min, yellow under 30, orange under 45, red under 60.*
 
 </div>
 
----
+## What it does
 
-## ✨ Fonctionnalités
+You drop a marker, the map colors itself according to real travel time, computed against the actual timetables of the day (not some average speed heuristic). A full query touches the 36 071 stops of the network and comes back in about 15 ms, so everything feels instantaneous, including the sliders.
 
-- 🎯 **Un clic = un heatmap** — temps de trajet vers tout le réseau (métro, RER, Transilien, tram, bus des 75 opérateurs IDFM), correspondances et marche comprises
-- 🤝 **Mode rencontre** — avec plusieurs marqueurs, basculez d'« atteignable par *l'un* de nous » (union) à « où peut-on *tous* se retrouver rapidement » (max des temps)
-- 🎬 **Animation de la journée** — un bouton ▶ fait défiler l'heure de départ de 5h à minuit : le réseau respire au rythme des fréquences
-- 🚇 **Filtres par mode** — métro / RER-train / tram / bus, combinables ("et si je n'avais pas le bus ?")
-- 🧭 **Itinéraire au clic droit** — le détail du trajet le plus rapide vers n'importe quel point : lignes, horaires, correspondances, minutes de marche
-- ⏰ **Heure de départ libre** + bornes de couleur ajustables (les sliders ne refont *aucun* appel réseau)
-- 🔗 **URL partageable** — toute la vue (marqueurs, heure, bornes, modes) vit dans l'URL
-- 🔍 Recherche d'adresse (Nominatim/OSM)
+A few things I'm rather happy with:
+
+- 🤝 **Meeting point mode.** With two or more markers you can switch from "reachable by *one* of us" to "reachable by *all* of us". Very useful to settle the eternal "on se retrouve où ?" debate with actual data.
+- 🎬 **Day animation.** Press ▶ and the departure time scrolls from 5:00 to midnight. Watching the suburbs turn red after the last RER is oddly satisfying.
+- 🚇 **Mode filters.** Untick "Bus" and see how much of the region quietly disappears. Spoiler: a lot.
+- 🧭 **Right-click for the itinerary.** The CSA already knows the optimal journey, so showing it costs nothing: lines, transfer times, walking legs, arrival time.
+- 🔗 The whole view (markers, time, bounds, modes) lives in the URL, so you can send a link instead of a screenshot.
 
 <div align="center">
-<img src="docs/features.png" alt="Mode rencontre, filtres et itinéraire" width="85%"/>
+<img src="docs/features.png" alt="Meeting mode, mode filters and an itinerary popup" width="85%"/>
 
-*Mode rencontre à deux marqueurs, sans bus, itinéraire détaillé au clic droit.*
+*Meeting mode with two markers, buses disabled, itinerary on right-click.*
 </div>
 
-## ⚙️ Comment ça marche
+## How it works
 
-1. **Ingestion** (one-shot, ~40 s) — le [flux GTFS d'Île-de-France Mobilités](https://data.iledefrance-mobilites.fr/explore/dataset/offre-horaires-tc-gtfs-idfm/) (129 Mo) est compilé en tableaux numpy : **2,97 M de connexions** triées par heure de départ + un graphe piéton de 208 k arêtes (correspondances officielles, gares multi-quais, arrêts à < 200 m).
-2. **Requête** — le [Connection Scan Algorithm](https://arxiv.org/abs/1703.05997) balaie les connexions en un seul passage. Compilé par numba : **~15 ms** pour un *one-to-all* complet, prédécesseurs compris (d'où les itinéraires gratuits).
-3. **Rendu** — un cercle canvas par arrêt atteint, de rayon `80 m/min × minutes restantes de la bande` : la distance encore parcourable à pied. ~28 000 cercles opaques dans un *pane* Leaflet à 40 % d'opacité (la transparence par couche, jamais par cercle — sinon l'empilement sature).
+Nothing exotic, but the pieces fit together nicely.
 
-Le backend est **100 % GTFS générique** : aucune ligne de code spécifique à Paris. Une autre ville = un autre zip GTFS.
+**Data.** Île-de-France Mobilités publishes a single [GTFS feed](https://data.iledefrance-mobilites.fr/explore/dataset/offre-horaires-tc-gtfs-idfm/) covering all 75 operators of the region (129 MB, refreshed three times a day). A one-shot preprocessing step compiles one service day into flat numpy arrays: 2.97M timetabled connections sorted by departure time, plus a footpath graph (official transfers, multi-platform stations, anything within 200 m). Takes about 40 s.
 
-## 🚀 Lancer en local
+**Engine.** Earliest-arrival times are computed with the [Connection Scan Algorithm](https://arxiv.org/abs/1703.05997): a single linear sweep over the sorted connections, no priority queue, no graph in the usual sense. The scan is a sequential loop so numpy alone cannot help, but compiled with numba it runs the full one-to-all in 13 to 35 ms. The kernel also records predecessors, which is why itineraries come for free.
 
-**Prérequis** : Python ≥ 3.12, Node ≥ 20.
+**Rendering.** This part I borrowed from [tflmap](https://tflmap.onrender.com/), which does it for London: no isochrone polygons at all. Each reached stop gets a circle whose radius is the distance you can still walk in the remaining time of its color band (80 m/min). Some 28 000 opaque circles on a single canvas, the whole layer faded to 40% with CSS. The overlap of thousands of circles reads as a continuous heat map, et voilà. One hard-earned detail: the opacity must be applied per layer and never per circle, otherwise the alpha stacks up and you get saturated blobs (I know because I did it wrong first).
+
+The backend contains zero Paris-specific code, by design. Point the download script at any GTFS zip and you get the same map for another city.
+
+## Running it locally
+
+You need Python ≥ 3.12 and Node ≥ 20.
 
 ```powershell
-# Backend (terminal 1)
+# backend, terminal 1
 cd backend
 python -m venv .venv
 .\.venv\Scripts\python -m pip install -e ".[dev]"
-.\.venv\Scripts\python -m ingest.download_gtfs                                    # ~129 Mo
-.\.venv\Scripts\python -m ingest.build_network --gtfs data/gtfs/IDFM-gtfs.zip --date 2026-06-16
+.\.venv\Scripts\python -m ingest.download_gtfs
+.\.venv\Scripts\python -m ingest.build_network --gtfs data/gtfs/IDFM-gtfs.zip
 .\.venv\Scripts\python -m uvicorn app.main:app --port 8000
 
-# Frontend (terminal 2)
+# frontend, terminal 2
 cd frontend
 npm install
-npm run dev        # → http://localhost:5173
+npm run dev        # http://localhost:5173
 ```
 
-> 💡 Choisissez comme `--date` un jour de semaine dans les 30 prochains jours (le flux IDFM est glissant). Pour une autre ville : `download_gtfs --url <gtfs.zip>`.
+`build_network` defaults to next Tuesday, which is a reasonable "typical weekday". The feed only covers the next 30 days, so rebuild from time to time (it's fast).
 
-**Vérifier** : `pytest` (9 tests du kernel), `python -m scripts.query_cli --from 48.8588,2.3470 --at 08:30 --to "Defense"`, et `node smoke.mjs` / `node smoke-interactions.mjs` (smoke tests Playwright de l'app complète).
+To convince yourself it works: `pytest` runs the kernel against a hand-built toy network, and `python -m scripts.query_cli --from 48.8588,2.3470 --at 08:30 --to "Defense"` should say roughly 16 min, which matches what Citymapper claims for Châtelet to La Défense. There are also two Playwright smoke tests (`node smoke.mjs`) that drive the real app.
 
-## 📡 API
+## API
 
-| Endpoint | Description |
+| Endpoint | What it returns |
 |---|---|
-| `GET /health` | statut, date de service, tailles du réseau |
-| `GET /stops` | catalogue des arrêts (tableaux parallèles, ~533 ko gzip, mis en cache 24 h) |
-| `GET /traveltime?from=48.85,2.34&at=08:30&max=100` | `{idx[], minutes[]}` — `from` répétable (≤ 4) ; `mode=union\|meet` ; `modes=metro,rail,tram,bus` |
-| `GET /route?from=…&to=48.89,2.24&at=08:30` | itinéraire détaillé vers un point : étapes, lignes, horaires |
+| `GET /health` | service date and network sizes |
+| `GET /stops` | the stop catalog as parallel arrays, fetched once and cached |
+| `GET /traveltime?from=48.85,2.34&at=08:30` | `{idx[], minutes[]}`; repeat `from` up to 4 times, `mode=union\|meet`, `modes=metro,rail,tram,bus` |
+| `GET /route?from=…&to=48.89,2.24&at=08:30` | the fastest journey to a point, leg by leg |
 
-## 📊 Performances mesurées
+Per-query responses carry only stop indices and minutes (about 110 kB gzipped); names and coordinates are joined client-side from the cached catalog. Sliders never trigger a request at all, the band assignment is recomputed locally.
 
-| Étape | Mesure |
+## Numbers
+
+| | |
 |---|---|
-| Prétraitement GTFS complet | 37 s |
-| Requête CSA à chaud (2,97 M connexions, one-to-all) | **13–35 ms** |
-| Réponse `/traveltime` (~28 500 arrêts, gzip) | 110 ko |
-| Rendu de ~28 000 cercles (canvas) | 100–300 ms |
+| GTFS preprocessing (one-shot) | 37 s |
+| Warm CSA query, one-to-all over 2.97M connections | **13 to 35 ms** |
+| `/traveltime` payload, gzipped | ~110 kB |
+| Canvas redraw, ~28 000 circles | 100 to 300 ms |
 
-## ☁️ Déployer (Render, gratuit)
+## ☁️ Deploying
 
-Le repo contient un blueprint [`render.yaml`](render.yaml) qui décrit les deux services :
-l'API (Docker — le réseau GTFS est téléchargé et précompilé **pendant le build de l'image**,
-donc rafraîchi à chaque déploiement) et le frontend statique.
+A [`render.yaml`](render.yaml) blueprint deploys both services on Render's free tier: the API as a Docker image (the network is downloaded and precompiled during the image build, so every deploy ships fresh data) and the frontend as a static site. New → Blueprint on [render.com](https://render.com), select the repo, done. Mind that the free API falls asleep after 15 idle minutes; the first visit then takes a minute or so.
 
-1. Sur [render.com](https://render.com) : **New → Blueprint**, connecter ce repo GitHub
-2. Render crée `paris-travel-time-api` (web, Docker) et `paris-travel-time` (statique)
-3. C'est tout — le site est sur `https://paris-travel-time.onrender.com`
+## Credits
 
-> ⚠️ Offre gratuite : l'API s'endort après 15 min d'inactivité (premier chargement ~1 min),
-> et si les noms de services sont déjà pris, adapter les deux URLs dans `render.yaml`
-> (`CORS_ORIGINS` côté API, `VITE_API_URL` côté frontend).
+The concept comes from [London Travel Time](https://tflmap.onrender.com/) by Jonas Scholz. His code is not public; I reverse-engineered the behavior from the outside and rewrote everything, in Python rather than Rust. The full story (and all the technical details) is in [`docs/rapport.pdf`](docs/rapport.pdf), in French.
 
-## 📚 Pour aller plus loin
-
-- [`docs/rapport.pdf`](docs/rapport.pdf) — rapport technique complet (11 pages) : rétro-ingénierie de l'application originale, algorithme, choix d'architecture, mesures.
-- Pistes v2 : vraies isochrones (graphe piéton OSM), multi-villes (Mobility Database), temps réel (SIRI/PRIM).
-
-## 🙏 Crédits
-
-Inspiré de [London Travel Time](https://tflmap.onrender.com/) de Jonas Scholz (concept rétro-analysé, code intégralement réécrit).
-Données : [Île-de-France Mobilités](https://prim.iledefrance-mobilites.fr/) (ODbL) · Fonds de carte : [CARTO](https://carto.com/) / [OpenStreetMap](https://www.openstreetmap.org/copyright) · Géocodage : [Nominatim](https://nominatim.org/).
+Data: [Île-de-France Mobilités](https://prim.iledefrance-mobilites.fr/) (ODbL). Tiles: [CARTO](https://carto.com/attributions) / [OpenStreetMap](https://www.openstreetmap.org/copyright). Geocoding: [Nominatim](https://nominatim.org/).
