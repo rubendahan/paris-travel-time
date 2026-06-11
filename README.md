@@ -98,6 +98,6 @@ A [`render.yaml`](render.yaml) blueprint deploys both services on Render's free 
 
 ## Credits
 
-The concept comes from [London Travel Time](https://tflmap.onrender.com/) by Jonas Scholz. His code is not public; I reverse-engineered the behavior from the outside and rewrote everything, in Python rather than Rust. The full story (and all the technical details) is in [`docs/rapport.pdf`](docs/rapport.pdf), in French.
+The concept comes from [London Travel Time](https://tflmap.onrender.com/) by Jonas Scholz. His code is not public; I reverse-engineered the behavior from the outside and rewrote everything, in Python rather than Rust. The full story, methods, algorithms and measurements are in the [technical report](docs/technical-report.pdf) (16 pages, English); an earlier French write-up lives in [`docs/rapport.pdf`](docs/rapport.pdf).
 
 Data: [Île-de-France Mobilités](https://prim.iledefrance-mobilites.fr/) (ODbL). Tiles: [CARTO](https://carto.com/attributions) / [OpenStreetMap](https://www.openstreetmap.org/copyright). Geocoding: [Nominatim](https://nominatim.org/).
