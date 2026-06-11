@@ -74,11 +74,16 @@ def stops(request: Request, response: Response) -> dict:
 
 
 @router.get("/walkmask")
-def walkmask(request: Request, response: Response) -> dict:
+def walkmask(request: Request, response: Response):
     wm = request.app.state.network.walkmask
     if wm is None:
         raise HTTPException(404, "no walkability mask available")
-    response.headers["Cache-Control"] = "public, max-age=86400"
+    # no-cache + ETag: the browser revalidates each session (a 304 when the
+    # mask is unchanged) instead of serving a stale mask for a day
+    if request.headers.get("if-none-match") == wm.etag:
+        return Response(status_code=304, headers={"ETag": wm.etag, "Cache-Control": "no-cache"})
+    response.headers["ETag"] = wm.etag
+    response.headers["Cache-Control"] = "no-cache"
     return {
         "w": wm.w, "h": wm.h, "cellM": wm.cell_m,
         "south": wm.south, "west": wm.west, "north": wm.north, "east": wm.east,

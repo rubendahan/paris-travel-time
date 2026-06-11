@@ -7,6 +7,7 @@ crow-fly approximations: the initial walk from a marker to its nearby stops
 """
 
 import base64
+import hashlib
 import heapq
 import json
 import math
@@ -24,6 +25,7 @@ ASSET = Path(__file__).resolve().parent.parent.parent / "assets" / "walkmask.npz
 class Walkmask:
     mask: np.ndarray  # uint8[h, w], 1 = walkable
     packed_b64: str  # packbits payload, ready to serve
+    etag: str  # content hash, so browsers revalidate instead of caching stale masks
     w: int
     h: int
     cell_m: float
@@ -47,9 +49,11 @@ def load_walkmask(path: Path = ASSET) -> Walkmask | None:
     meta = json.loads(str(npz["meta"][0]))
     packed = npz["mask"]
     mask = np.unpackbits(packed)[: meta["w"] * meta["h"]].reshape(meta["h"], meta["w"])
+    packed_bytes = packed.tobytes()
     return Walkmask(
         mask=mask,
-        packed_b64=base64.b64encode(packed.tobytes()).decode(),
+        packed_b64=base64.b64encode(packed_bytes).decode(),
+        etag=f'"{hashlib.md5(packed_bytes).hexdigest()[:16]}"',
         w=meta["w"], h=meta["h"], cell_m=meta["cell_m"],
         south=meta["south"], west=meta["west"],
         north=meta["north"], east=meta["east"],
