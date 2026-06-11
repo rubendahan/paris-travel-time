@@ -20,8 +20,8 @@ import type {
 
 const ANIM_START = 5 * 60 // 05:00, in minutes
 const ANIM_END = 24 * 60 // wrap back to 05:00 at midnight
-const ANIM_STEP_MIN = 15
-const ANIM_TICK_MS = 700
+const ANIM_STEP_MIN = 30
+const ANIM_TICK_MS = 900
 
 interface RoutePopupState {
   pos: LatLng
@@ -100,6 +100,15 @@ export default function App() {
           />
         )}
       </MapView>
+
+      {playing && (
+        <div className="pointer-events-none absolute bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-xl bg-gray-900/80 px-6 py-3 text-center text-white shadow-lg backdrop-blur">
+          <div className="text-4xl font-bold tabular-nums">{departAt}</div>
+          <div className="mt-0.5 text-xs tabular-nums opacity-80">
+            {data ? `${data.idx.length.toLocaleString('fr-FR')} arrêts atteignables` : '…'}
+          </div>
+        </div>
+      )}
 
       <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex items-start justify-between gap-2 p-3">
         <div className="pointer-events-auto">

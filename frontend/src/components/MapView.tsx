@@ -2,6 +2,18 @@ import { MapContainer, TileLayer, useMapEvents } from 'react-leaflet'
 import type { ReactNode } from 'react'
 import type { LatLng } from '../lib/types'
 
+// clicks inside a popup (e.g. the "Supprimer" button) bubble up to the map's
+// own click listener and would drop a new marker at the button's position.
+// By the time the map handler runs the popup may already be closed and its
+// content detached (closeOnClick fires first), so a disconnected target is
+// also treated as popup-originated: a genuine map click always targets a
+// still-connected pane element.
+function isFromPopup(e: { originalEvent: Event }): boolean {
+  const target = e.originalEvent.target
+  if (!(target instanceof Element)) return false
+  return !target.isConnected || target.closest('.leaflet-popup') !== null
+}
+
 function ClickHandler({
   onClick,
   onContextMenu,
@@ -10,8 +22,12 @@ function ClickHandler({
   onContextMenu: (pos: LatLng) => void
 }) {
   useMapEvents({
-    click: (e) => onClick({ lat: e.latlng.lat, lng: e.latlng.lng }),
-    contextmenu: (e) => onContextMenu({ lat: e.latlng.lat, lng: e.latlng.lng }),
+    click: (e) => {
+      if (!isFromPopup(e)) onClick({ lat: e.latlng.lat, lng: e.latlng.lng })
+    },
+    contextmenu: (e) => {
+      if (!isFromPopup(e)) onContextMenu({ lat: e.latlng.lat, lng: e.latlng.lng })
+    },
   })
   return null
 }
