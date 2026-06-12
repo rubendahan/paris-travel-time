@@ -31,6 +31,7 @@ A few things I'm rather happy with:
 - 🧭 **Right-click for the itinerary.** The CSA already knows the optimal journey, so showing it costs nothing: lines, transfer times, walking legs, arrival time.
 - 🌊 **The Seine is real.** Isochrones do not swim: walking propagation honors an OSM-derived mask (water and rail yards blocked, bridges open), both for the colored bands and for the initial walk from your marker.
 - ⏰ **"Be there by" mode.** Flip from "leave at" to "arrive by" and the markers become destinations: the map shows the latest you can leave from anywhere (a reverse scan of the timetable).
+- 🎓 **The algorithm explains itself.** The little ? button opens a proper writeup: the connection scan replayed step by step on a toy network, a space-time diagram of the timetable, the invariant that makes one sorted pass provably enough, and why it beats a priority queue on real hardware.
 - 🔗 The whole view (markers, time, bounds, modes) lives in the URL, so you can send a link instead of a screenshot.
 
 <div align="center">

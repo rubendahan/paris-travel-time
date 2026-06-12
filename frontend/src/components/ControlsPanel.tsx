@@ -2,10 +2,11 @@ import type { Bounds, CombineMode, Direction, TransitMode, TravelTimeResult } fr
 import { ALL_MODES } from '../lib/types'
 import { clockDisplay } from '../App'
 import BoundsSliders from './BoundsSliders'
+import AlgoExplainer from './AlgoExplainer'
 
 const MODE_LABELS: Record<TransitMode, string> = {
-  metro: 'Métro',
-  rail: 'RER/Train',
+  metro: 'Metro',
+  rail: 'Train/RER',
   tram: 'Tram',
   bus: 'Bus',
 }
@@ -50,12 +51,15 @@ export default function ControlsPanel({
 
   return (
     <div className="w-72 rounded-lg border border-gray-200 bg-white/95 p-3 shadow-md backdrop-blur">
-      <h1 className="mb-2 text-sm font-bold text-gray-800">Paris Travel Time</h1>
+      <div className="mb-2 flex items-center justify-between">
+        <h1 className="text-sm font-bold text-gray-800">Paris Travel Time</h1>
+        <AlgoExplainer />
+      </div>
 
       {sourceCount === 0 && (
         <p className="mb-2 text-xs text-gray-600">
-          Cliquez sur la carte (ou cherchez une adresse) pour placer un départ. Clic droit :
-          itinéraire détaillé.
+          Click the map (or search an address) to drop a start. Right-click for the detailed
+          route.
         </p>
       )}
 
@@ -66,8 +70,8 @@ export default function ControlsPanel({
             onChange={(e) => onDirectionChange(e.target.value as Direction)}
             className="rounded border border-gray-300 px-1 py-1 text-xs"
           >
-            <option value="depart">Partir à</option>
-            <option value="arrive">Arriver à</option>
+            <option value="depart">Leave at</option>
+            <option value="arrive">Arrive by</option>
           </select>
           <input
             type="time"
@@ -78,7 +82,7 @@ export default function ControlsPanel({
         </label>
         <button
           onClick={onTogglePlay}
-          title="Animer la journée (5h → minuit)"
+          title="Animate the day (5 am to midnight)"
           className={`rounded px-2 py-1 text-sm ${playing ? 'bg-gray-800 text-white' : 'border border-gray-300 hover:bg-gray-100'}`}
         >
           {playing ? '⏸' : '▶'}
@@ -89,8 +93,8 @@ export default function ControlsPanel({
         <div className="mb-2 flex gap-1 rounded-md bg-gray-100 p-0.5 text-xs">
           {(
             [
-              ['union', 'Union (l’un de nous)'],
-              ['meet', 'Rencontre (nous tous)'],
+              ['union', 'One of us'],
+              ['meet', 'All of us'],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -121,16 +125,16 @@ export default function ControlsPanel({
       <BoundsSliders bounds={bounds} onChange={onBoundsChange} />
 
       <div className="mt-2 min-h-4 text-xs text-gray-500">
-        {loading && <span className="animate-pulse">Calcul en cours…</span>}
-        {error && <span className="text-red-600">Erreur : {error}</span>}
+        {loading && <span className="animate-pulse">Computing…</span>}
+        {error && <span className="text-red-600">Error: {error}</span>}
         {!loading && !error && result && (
           <span>
-            {result.idx.length.toLocaleString('fr-FR')} arrêts atteignables · {result.queryMs} ms ·{' '}
+            {result.idx.length.toLocaleString('en-GB')} stops reachable · {result.queryMs} ms ·{' '}
             {result.serviceDate}
           </span>
         )}
         {!loading && !error && !result && sourceCount > 0 && modes.length === 0 && (
-          <span className="text-orange-600">Sélectionnez au moins un mode.</span>
+          <span className="text-orange-600">Select at least one mode.</span>
         )}
       </div>
     </div>
