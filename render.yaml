@@ -16,6 +16,16 @@ services:
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: dist
+    # index.html must be revalidated on every visit, otherwise a returning
+    # browser keeps an old bundle that may not match the current API.
+    # Hashed assets are safe to cache forever.
+    headers:
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+      - path: /assets/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
     envVars:
       - key: VITE_API_URL
         value: https://paris-travel-time-api.onrender.com
