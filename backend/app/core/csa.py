@@ -1,4 +1,4 @@
-"""Connection Scan Algorithm — one-to-all earliest arrival.
+"""Connection Scan Algorithm: one-to-all earliest arrival.
 
 The kernel is written against plain numpy arrays so it runs identically
 without numba (slow, for debugging). numba JIT brings it to ~15-35 ms
@@ -9,7 +9,8 @@ kernel skips connections whose bit is absent from mode_mask.
 
 Journey extraction: the kernel records, for each improved stop, the
 connection (or footpath origin) that improved it, plus the first connection
-where each trip was boarded — enough to rebuild a valid journey backwards.
+where each trip was boarded, which is enough to rebuild a valid journey
+backwards.
 """
 
 import numpy as np

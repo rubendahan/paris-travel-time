@@ -20,7 +20,7 @@ import numpy as np
 import requests
 from PIL import Image, ImageDraw
 
-# south, west, north, east — covers the GTFS network's useful extent
+# south, west, north, east: covers the GTFS network's useful extent
 BBOX = (48.40, 1.60, 49.10, 3.20)
 CELL_M = 30.0
 MIN_WATER_M2 = 10_000  # ignore village ponds

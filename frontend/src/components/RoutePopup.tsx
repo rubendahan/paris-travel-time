@@ -45,7 +45,7 @@ export default function RoutePopup({
                   {leg.kind === 'walk' ? 'Marche' : leg.mode} · {leg.fromName} → {leg.toName}
                   <span className="text-gray-500">
                     {' '}
-                    ({leg.dep}–{leg.arr}, {leg.minutes} min)
+                    ({leg.dep}-{leg.arr}, {leg.minutes} min)
                   </span>
                 </span>
               </li>

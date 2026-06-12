@@ -4,8 +4,8 @@ Usage:
   python -m ingest.build_network --gtfs data/gtfs/IDFM-gtfs.zip --date 2026-06-16
 
 Outputs (in --out, default backend/data/):
-  network.npz    — connection arrays sorted by dep_time + footpath CSR
-  stops.parquet  — stop catalog (idx-aligned: stop_id, name, lat, lon)
+  network.npz    connection arrays sorted by dep_time + footpath CSR
+  stops.parquet  stop catalog (idx-aligned: stop_id, name, lat, lon)
 """
 
 import argparse
@@ -70,7 +70,7 @@ def read_active_trips(
     """
     services = active_service_ids(zf, date)
     if not services:
-        raise SystemExit(f"no active services on {date} — check the date is within the feed window")
+        raise SystemExit(f"no active services on {date}, check the date is within the feed window")
 
     with zf.open("routes.txt") as f:
         routes = pd.read_csv(
@@ -315,7 +315,7 @@ def main() -> None:
         args.out / "stops.parquet",
     )
     print(
-        f"done in {time.perf_counter() - t0:.0f}s — stops={len(stops):,} trips={len(trip_code):,} "
+        f"done in {time.perf_counter() - t0:.0f}s: stops={len(stops):,} trips={len(trip_code):,} "
         f"connections={len(dep_stop):,} footpaths={len(fp_target):,}\n"
         f"dep_time range: {dep_time.min() // 3600:02d}h-{dep_time.max() // 3600}h"
     )

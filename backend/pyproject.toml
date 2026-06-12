@@ -1,7 +1,7 @@
 [project]
 name = "paris-travel-time-backend"
 version = "0.1.0"
-description = "Generic GTFS travel-time backend (CSA) — Paris/IDFM first"
+description = "Generic GTFS travel-time backend (CSA), built for Paris/IDFM"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",

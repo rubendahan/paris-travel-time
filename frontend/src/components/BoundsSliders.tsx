@@ -33,7 +33,7 @@ export default function BoundsSliders({
             className="w-full accent-gray-700"
           />
           <span className="w-14 shrink-0 text-right text-xs tabular-nums text-gray-600">
-            {i === 0 ? '0' : bounds[i - 1]}–{b} min
+            {i === 0 ? '0' : bounds[i - 1]}-{b} min
           </span>
         </div>
       ))}
