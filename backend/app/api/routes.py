@@ -19,7 +19,7 @@ router = APIRouter()
 LATLNG_RE = re.compile(r"^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$")
 TIME_RE = re.compile(r"^(\d{1,2}):(\d{2})$")
 
-MODE_LABELS = ["Tram", "Métro", "Train/RER", "Bus", "Transport"]
+MODE_LABELS = ["Tram", "Metro", "Train/RER", "Bus", "Transit"]
 
 
 def parse_at(at: str) -> int:
@@ -138,7 +138,7 @@ def route(
     the journey from the CSA predecessor chain.
     """
     if dir == "arrive":
-        raise HTTPException(422, "l'itinéraire détaillé n'est disponible qu'en mode départ")
+        raise HTTPException(422, "detailed routes are only available in depart mode")
     net = request.app.state.network
     depart_secs = parse_at(at)
     sources = parse_sources(from_)
@@ -171,7 +171,7 @@ def route(
     if init_walk_min > 0.2:
         out.append({
             "kind": "walk",
-            "fromName": "Départ",
+            "fromName": "Start",
             "toName": net.stop_names[src_stop],
             "dep": fmt_time(depart_secs),
             "arr": fmt_time(first_dep),
@@ -195,7 +195,7 @@ def route(
         out.append({
             "kind": "walk",
             "fromName": net.stop_names[stop],
-            "toName": "Arrivée",
+            "toName": "Destination",
             "dep": fmt_time(int(arr[best])),
             "arr": fmt_time(int(total[best])),
             "minutes": round(float(walk_out_s[best]) / 60.0, 1),

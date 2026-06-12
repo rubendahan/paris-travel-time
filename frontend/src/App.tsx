@@ -112,7 +112,7 @@ export default function App() {
   const showRoute = (pos: LatLng) => {
     if (!sources.length) return
     if (direction === 'arrive') {
-      setRoutePopup({ pos, route: null, error: "L'itinéraire détaillé n'est disponible qu'en mode « Partir à »." })
+      setRoutePopup({ pos, route: null, error: 'Detailed routes are only available in "Leave at" mode.' })
       return
     }
     const seq = ++routeSeq.current
@@ -150,11 +150,11 @@ export default function App() {
         <div className="pointer-events-none absolute bottom-8 left-1/2 z-[1000] w-[min(26rem,90vw)] -translate-x-1/2 rounded-xl bg-gray-900/85 px-5 py-3 text-center text-white shadow-lg backdrop-blur">
           <div className="text-sm font-semibold">
             <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white align-[-1px]" />
-            Réveil du serveur en cours…
+            Waking up the server…
           </div>
           <div className="mt-1 text-xs opacity-80">
-            L'hébergement gratuit met l'API en veille après 15 minutes d'inactivité.
-            Le premier chargement peut prendre jusqu'à une minute.
+            Free hosting puts the API to sleep after 15 idle minutes. The first load can take
+            up to a minute.
           </div>
         </div>
       )}
@@ -163,7 +163,7 @@ export default function App() {
         <div className="pointer-events-none absolute bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-xl bg-gray-900/80 px-6 py-3 text-center text-white shadow-lg backdrop-blur">
           <div className="text-4xl font-bold tabular-nums">{clockDisplay(departAt)}</div>
           <div className="mt-0.5 text-xs tabular-nums opacity-80">
-            {data ? `${data.idx.length.toLocaleString('fr-FR')} arrêts atteignables` : '…'}
+            {data ? `${data.idx.length.toLocaleString('en-GB')} stops reachable` : '…'}
           </div>
         </div>
       )}

@@ -6,8 +6,8 @@ const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
 
 await page.goto('http://localhost:5173/', { timeout: 30_000 })
-await page.waitForSelector('text=Réveil du serveur', { timeout: 10_000 })
-const visible = await page.locator('text=Réveil du serveur en cours').isVisible()
+await page.waitForSelector('text=Waking up the server', { timeout: 10_000 })
+const visible = await page.locator('text=Waking up the server').isVisible()
 
 console.log('BANNER_VISIBLE:', visible)
 await browser.close()

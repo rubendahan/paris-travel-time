@@ -41,12 +41,12 @@ export default function StartMarkers({
         >
           <Popup>
             <div className="text-sm">
-              Départ {i + 1}
+              Start {i + 1}
               <button
                 className="ml-2 rounded bg-red-500 px-2 py-0.5 text-xs text-white hover:bg-red-600"
                 onClick={() => onRemove(i)}
               >
-                Supprimer
+                Remove
               </button>
             </div>
           </Popup>

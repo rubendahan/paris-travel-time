@@ -2,7 +2,7 @@ import { MapContainer, Pane, TileLayer, useMapEvents } from 'react-leaflet'
 import type { ReactNode } from 'react'
 import type { LatLng } from '../lib/types'
 
-// clicks inside a popup (e.g. the "Supprimer" button) bubble up to the map's
+// clicks inside a popup (e.g. the "Remove" button) bubble up to the map's
 // own click listener and would drop a new marker at the button's position.
 // By the time the map handler runs the popup may already be closed and its
 // content detached (closeOnClick fires first), so a disconnected target is

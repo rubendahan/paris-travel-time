@@ -95,7 +95,7 @@ export default function SearchBox({ onSelect }: { onSelect: (pos: LatLng, name: 
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={onKeyDown}
-          placeholder="Adresse, rue, ville… (Entrée pour valider)"
+          placeholder="Address, street, city… (Enter to pick)"
           className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-8 text-sm shadow-md outline-none focus:border-gray-500"
         />
         {loading && (
@@ -110,7 +110,7 @@ export default function SearchBox({ onSelect }: { onSelect: (pos: LatLng, name: 
               setResults([])
             }}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-gray-400 hover:text-gray-700"
-            aria-label="Effacer"
+            aria-label="Clear"
           >
             ✕
           </button>

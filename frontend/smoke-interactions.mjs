@@ -10,7 +10,7 @@ page.on('console', (m) => m.type() === 'error' && errors.push(m.text()))
 page.on('pageerror', (e) => errors.push(String(e)))
 
 await page.goto(URL, { waitUntil: 'networkidle', timeout: 60_000 })
-await page.waitForSelector('text=arrêts atteignables', { timeout: 60_000 })
+await page.waitForSelector('text=stops reachable', { timeout: 60_000 })
 
 // 1. click the map (west of center) -> second marker, union refetch
 await page.locator('.leaflet-container').click({ position: { x: 400, y: 450 } })
@@ -18,27 +18,27 @@ await page.waitForTimeout(1200)
 const markers = await page.locator('.leaflet-marker-icon').count()
 
 // 2. meet mode appears with 2 markers; toggle it
-await page.locator('button:has-text("Rencontre")').click()
+await page.locator('button:has-text("All of us")').click()
 await page.waitForTimeout(1200)
 const urlMeet = page.url().includes('mode=meet')
-const statsMeet = (await page.locator('text=arrêts atteignables').textContent())?.trim()
+const statsMeet = (await page.locator('text=stops reachable').textContent())?.trim()
 
 // 3. uncheck Bus -> refetch with modes filter
 await page.locator('label:has-text("Bus") input').uncheck()
 await page.waitForTimeout(1200)
 const urlModes = decodeURIComponent(page.url()).includes('tm=metro,rail,tram')
-const statsNoBus = (await page.locator('text=arrêts atteignables').textContent())?.trim()
+const statsNoBus = (await page.locator('text=stops reachable').textContent())?.trim()
 
 // 4. right-click -> itinerary popup
 await page.locator('.leaflet-container').click({ position: { x: 700, y: 300 }, button: 'right' })
-await page.waitForSelector('text=arrivée', { timeout: 15_000 })
+await page.waitForSelector('text=arrives', { timeout: 15_000 })
 const popupText = (await page.locator('.leaflet-popup-content').textContent())?.trim()
 
 // 5. day animation: play, let it tick twice, pause
 const timeBefore = await page.locator('input[type="time"]').inputValue()
-await page.locator('button[title*="Animer"]').click()
+await page.locator('button[title*="Animate"]').click()
 await page.waitForTimeout(1600)
-await page.locator('button[title*="Animer"]').click()
+await page.locator('button[title*="Animate"]').click()
 const timeAfter = await page.locator('input[type="time"]').inputValue()
 
 // 6. slider drag -> URL only, no refetch
