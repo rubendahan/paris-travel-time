@@ -102,6 +102,6 @@ A [`render.yaml`](render.yaml) blueprint deploys both services on Render's free 
 
 ## Credits
 
-The concept comes from [London Travel Time](https://tflmap.onrender.com/) by Jonas Scholz. His code is not public; I reverse-engineered the behavior from the outside and rewrote everything, in Python rather than Rust.
+Inspired by [London Travel Time](https://tflmap.onrender.com/) by Jonas Scholz.
 
 Data: [Île-de-France Mobilités](https://prim.iledefrance-mobilites.fr/) (ODbL). Tiles: [CARTO](https://carto.com/attributions) / [OpenStreetMap](https://www.openstreetmap.org/copyright). Geocoding: [Nominatim](https://nominatim.org/).
