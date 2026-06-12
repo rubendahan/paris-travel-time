@@ -53,10 +53,40 @@ export default function App() {
 
   const { data, loading, error } = useTravelTime(sources, departAt, combine, modes, direction)
 
+  // Render's free tier puts the API to sleep after 15 idle minutes; while it
+  // boots, the first fetch can hang for a minute or fail outright. Retry until
+  // it answers, and only then fetch the walkmask (optional refinement).
   useEffect(() => {
-    fetchStops().then(setCatalog).catch(console.error)
-    fetchWalkmask().then(setWalkmask).catch(() => {}) // optional refinement
+    let cancelled = false
+    const load = async () => {
+      for (let attempt = 0; attempt < 20 && !cancelled; attempt++) {
+        try {
+          const stops = await fetchStops()
+          if (cancelled) return
+          setCatalog(stops)
+          fetchWalkmask().then(setWalkmask).catch(() => {})
+          return
+        } catch {
+          await new Promise((r) => setTimeout(r, 4000))
+        }
+      }
+    }
+    load()
+    return () => {
+      cancelled = true
+    }
   }, [])
+
+  // cold-start notice, shown once the initial load takes noticeably long
+  const [waking, setWaking] = useState(false)
+  useEffect(() => {
+    if (catalog) {
+      setWaking(false)
+      return
+    }
+    const id = window.setTimeout(() => setWaking(true), 2500)
+    return () => window.clearTimeout(id)
+  }, [catalog])
 
   useEffect(() => {
     writeUrlState({ sources, departAt, bounds, combine, modes, direction })
@@ -115,6 +145,19 @@ export default function App() {
           />
         )}
       </MapView>
+
+      {waking && !catalog && (
+        <div className="pointer-events-none absolute bottom-8 left-1/2 z-[1000] w-[min(26rem,90vw)] -translate-x-1/2 rounded-xl bg-gray-900/85 px-5 py-3 text-center text-white shadow-lg backdrop-blur">
+          <div className="text-sm font-semibold">
+            <span className="mr-2 inline-block h-3 w-3 animate-spin rounded-full border-2 border-white/30 border-t-white align-[-1px]" />
+            Réveil du serveur en cours…
+          </div>
+          <div className="mt-1 text-xs opacity-80">
+            L'hébergement gratuit met l'API en veille après 15 minutes d'inactivité.
+            Le premier chargement peut prendre jusqu'à une minute.
+          </div>
+        </div>
+      )}
 
       {playing && (
         <div className="pointer-events-none absolute bottom-8 left-1/2 z-[1000] -translate-x-1/2 rounded-xl bg-gray-900/80 px-6 py-3 text-center text-white shadow-lg backdrop-blur">
