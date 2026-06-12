@@ -92,6 +92,50 @@ const BAND_RGB = BAND_COLORS.map((c) => [
   parseInt(c.slice(5, 7), 16),
 ])
 
+/**
+ * Two-pass chamfer distance transform (walking minutes per cell). With a
+ * `writable` mask only those cells are updated; any cell may still be read,
+ * which lets a restricted fill continue seamlessly from authoritative
+ * neighbours without ever overwriting them.
+ */
+function chamfer(
+  field: Float64Array,
+  W: number,
+  H: number,
+  ortho: number,
+  diag: number,
+  writable: Uint8Array | null,
+) {
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const k = y * W + x
+      if (writable && !writable[k]) continue
+      let v = field[k]
+      if (x > 0 && field[k - 1] + ortho < v) v = field[k - 1] + ortho
+      if (y > 0) {
+        if (field[k - W] + ortho < v) v = field[k - W] + ortho
+        if (x > 0 && field[k - W - 1] + diag < v) v = field[k - W - 1] + diag
+        if (x < W - 1 && field[k - W + 1] + diag < v) v = field[k - W + 1] + diag
+      }
+      field[k] = v
+    }
+  }
+  for (let y = H - 1; y >= 0; y--) {
+    for (let x = W - 1; x >= 0; x--) {
+      const k = y * W + x
+      if (writable && !writable[k]) continue
+      let v = field[k]
+      if (x < W - 1 && field[k + 1] + ortho < v) v = field[k + 1] + ortho
+      if (y < H - 1) {
+        if (field[k + W] + ortho < v) v = field[k + W] + ortho
+        if (x < W - 1 && field[k + W + 1] + diag < v) v = field[k + W + 1] + diag
+        if (x > 0 && field[k + W - 1] + diag < v) v = field[k + W - 1] + diag
+      }
+      field[k] = v
+    }
+  }
+}
+
 function buildIsochrones(
   map: L.Map,
   catalog: StopsCatalog,
@@ -155,6 +199,48 @@ function buildIsochrones(
         }
       }
     }
+
+    // --- beyond the mask rectangle: crow-fly fallback ---
+    // The raster stops at a straight bbox edge; without this, so would the
+    // colors. Cells with no mask coverage are filled by a chamfer restricted
+    // to them: it reads the authoritative cells at the boundary (continuity)
+    // and takes seeds from the stops that sit outside the rectangle, but
+    // never writes inside, so barriers stay exact where the mask knows them.
+    const outside = new Uint8Array(W * H)
+    let hasOutside = false
+    for (let y = 0; y < H; y++) {
+      const lat = north - ((y + 0.5) * cellM) / M_PER_DEG_LAT
+      const rowOut = lat < wm.south || lat > wm.north
+      for (let x = 0; x < W; x++) {
+        const lon = west + ((x + 0.5) * cellM) / mPerDegLon
+        if (rowOut || lon < wm.west || lon > wm.east) {
+          outside[y * W + x] = 1
+          hasOutside = true
+        }
+      }
+    }
+    if (hasOutside) {
+      const maxBound = bounds[3]
+      for (let i = 0; i < result.idx.length; i++) {
+        const minutes = result.minutes[i]
+        if (minutes > maxBound) continue
+        const s = result.idx[i]
+        const lat = catalog.lats[s]
+        const lon = catalog.lons[s]
+        if (lat < south || lat > north || lon < west || lon > east) continue
+        const x = ((lon - west) * mPerDegLon) / cellM
+        const y = ((north - lat) * M_PER_DEG_LAT) / cellM
+        const cx = Math.min(W - 1, Math.max(0, Math.round(x)))
+        const cy = Math.min(H - 1, Math.max(0, Math.round(y)))
+        const k = cy * W + cx
+        if (!outside[k]) continue // covered by the native field
+        const offM = Math.hypot(x - cx, y - cy) * cellM
+        const v = minutes + offM / WALK_SPEED_M_PER_MIN
+        if (v < field[k]) field[k] = v
+      }
+      const ortho = cellM / WALK_SPEED_M_PER_MIN
+      chamfer(field, W, H, ortho, ortho * Math.SQRT2, outside)
+    }
   } else {
     // --- no mask: seed stops on the viewport grid, chamfer transform ---
     const maxBound = bounds[3]
@@ -175,33 +261,7 @@ function buildIsochrones(
       if (v < field[k]) field[k] = v
     }
     const ortho = cellM / WALK_SPEED_M_PER_MIN
-    const diag = ortho * Math.SQRT2
-    for (let y = 0; y < H; y++) {
-      for (let x = 0; x < W; x++) {
-        const k = y * W + x
-        let v = field[k]
-        if (x > 0 && field[k - 1] + ortho < v) v = field[k - 1] + ortho
-        if (y > 0) {
-          if (field[k - W] + ortho < v) v = field[k - W] + ortho
-          if (x > 0 && field[k - W - 1] + diag < v) v = field[k - W - 1] + diag
-          if (x < W - 1 && field[k - W + 1] + diag < v) v = field[k - W + 1] + diag
-        }
-        field[k] = v
-      }
-    }
-    for (let y = H - 1; y >= 0; y--) {
-      for (let x = W - 1; x >= 0; x--) {
-        const k = y * W + x
-        let v = field[k]
-        if (x < W - 1 && field[k + 1] + ortho < v) v = field[k + 1] + ortho
-        if (y < H - 1) {
-          if (field[k + W] + ortho < v) v = field[k + W] + ortho
-          if (x < W - 1 && field[k + W + 1] + diag < v) v = field[k + W + 1] + diag
-          if (x > 0 && field[k + W - 1] + diag < v) v = field[k + W - 1] + diag
-        }
-        field[k] = v
-      }
-    }
+    chamfer(field, W, H, ortho, ortho * Math.SQRT2, null)
   }
 
   // --- paint the field straight into a canvas image overlay ---

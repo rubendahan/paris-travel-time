@@ -46,13 +46,17 @@ export function computeNativeField(
   const buckets: number[][] = Array.from({ length: budget + diagS + 2 }, () => [])
 
   // --- seeds: every reached stop, snapped off blocked cells if needed ---
+  // Stops OUTSIDE the mask rectangle are clamped to the nearest edge cell:
+  // offM then includes the real distance from the stop to that cell, so the
+  // grid still receives their inward influence (and the budget check drops
+  // the ones too far away to matter). Without this, everything they serve
+  // would end on a straight line at the bbox edge.
   for (let i = 0; i < result.idx.length; i++) {
     const minutes = result.minutes[i]
     if (minutes > maxMinutes) continue
     const s = result.idx[i]
     const lat = catalog.lats[s]
     const lon = catalog.lons[s]
-    if (lat < wm.south || lat > wm.north || lon < wm.west || lon > wm.east) continue
     const fx = ((lon - wm.west) / (wm.east - wm.west)) * w
     const fy = ((wm.north - lat) / (wm.north - wm.south)) * h
     let cx = Math.min(w - 1, Math.max(0, Math.floor(fx)))
