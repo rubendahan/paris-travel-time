@@ -1,4 +1,6 @@
-﻿import { chromium } from 'playwright'
+﻿// Same check as smoke.mjs but against the deployed site. Generous timeouts:
+// the free-tier API may need a minute to wake up first.
+import { chromium } from 'playwright'
 const browser = await chromium.launch()
 const page = await browser.newPage({ viewport: { width: 1600, height: 900 } })
 const errors = []

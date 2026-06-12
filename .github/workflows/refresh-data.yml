@@ -1,0 +1,31 @@
+name: Refresh GTFS data
+
+# The network is compiled into the Docker image at build time and the GTFS
+# feed only covers the next 30 days, so a deployment that sits untouched
+# serves increasingly stale timetables. Hitting the Render deploy hook twice
+# a month rebuilds the image with fresh data.
+#
+# Setup: Render dashboard -> API service -> Settings -> Deploy Hook, then
+# save the URL as the RENDER_DEPLOY_HOOK repo secret.
+#
+# Like all scheduled workflows, GitHub pauses this one after 60 days without
+# repo activity; a commit revives it.
+
+on:
+  schedule:
+    - cron: '0 4 1,15 * *' # 1st and 15th of the month, 04:00 UTC
+  workflow_dispatch:
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger a Render deploy
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK secret is not set"
+            exit 1
+          fi
+          curl -sf -X POST "$HOOK"

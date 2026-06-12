@@ -76,7 +76,7 @@ npm run dev        # http://localhost:5173
 
 `build_network` defaults to next Tuesday, which is a reasonable "typical weekday". The feed only covers the next 30 days, so rebuild from time to time (it's fast).
 
-To convince yourself it works: `pytest` runs the kernel against a hand-built toy network, and `python -m scripts.query_cli --from 48.8588,2.3470 --at 08:30 --to "Defense"` should say roughly 16 min, which matches what Citymapper claims for Châtelet to La Défense. There are also two Playwright smoke tests (`node smoke.mjs`) that drive the real app.
+To convince yourself it works: `pytest` runs the kernel against a hand-built toy network, and `python -m scripts.query_cli --from 48.8588,2.3470 --at 08:30 --to "Defense"` should say roughly 16 min, which matches what Citymapper claims for Châtelet to La Défense. There are also Playwright smoke tests that drive the real app: `node smoke.mjs` for the basic flow, `node smoke-interactions.mjs` for the full interaction tour.
 
 ## API
 
