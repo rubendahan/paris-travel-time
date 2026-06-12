@@ -4,6 +4,8 @@
 
 **How far can you actually go in 30 minutes of public transport?**
 
+**[→ Try it live](https://paris-travel-time.onrender.com/)** (free hosting, the first load can take a minute if the API was asleep)
+
 Click anywhere on the map and find out. Works for all of Île-de-France: métro, RER, Transilien, trams, and the 1500-ish bus lines nobody can keep track of.
 
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
