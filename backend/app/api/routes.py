@@ -62,9 +62,16 @@ def health(request: Request) -> dict:
 
 
 @router.get("/stops")
-def stops(request: Request, response: Response) -> dict:
+def stops(request: Request, response: Response):
     net = request.app.state.network
-    response.headers["Cache-Control"] = "public, max-age=86400"
+    # no-cache + ETag: the browser revalidates each session (304 when the
+    # catalog is unchanged) instead of caching it for a day. A stale catalog
+    # mismatches the idx returned by /traveltime after a data refresh, which
+    # scrambles the isochrone field (the whole map can paint as one band).
+    if request.headers.get("if-none-match") == net.stops_etag:
+        return Response(status_code=304, headers={"ETag": net.stops_etag, "Cache-Control": "no-cache"})
+    response.headers["ETag"] = net.stops_etag
+    response.headers["Cache-Control"] = "no-cache"
     return {
         "ids": net.stop_ids,
         "names": net.stop_names,

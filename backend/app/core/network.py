@@ -1,3 +1,4 @@
+import hashlib
 import json
 import time
 from dataclasses import dataclass
@@ -32,6 +33,9 @@ class Network:
     order_arr_desc: np.ndarray = None  # connection indices by decreasing arr_time
     arr_sorted: np.ndarray = None  # arr_time sorted ascending
     walkmask: object = None  # optional Walkmask (set by the app lifespan)
+    # content hash of the served stop catalog, so browsers revalidate /stops
+    # instead of serving a catalog that no longer matches fresh /traveltime idx
+    stops_etag: str = None
 
     @property
     def n_stops(self) -> int:
@@ -73,6 +77,15 @@ def load_network(data_dir: Path) -> Network:
     order_asc = np.argsort(net.arr_time, kind="stable").astype(np.int32)
     net.arr_sorted = net.arr_time[order_asc]
     net.order_arr_desc = order_asc[::-1].copy()
+    # hash the exact catalog /stops serves: any change in count, order or
+    # coordinates flips the ETag, so a refreshed network invalidates the
+    # browser's cached catalog (whose idx would otherwise mismatch /traveltime)
+    h = hashlib.md5()
+    h.update("\n".join(net.stop_ids).encode())
+    h.update("\n".join(net.stop_names).encode())
+    h.update(net.stop_lats.round(6).tobytes())
+    h.update(net.stop_lons.round(6).tobytes())
+    net.stops_etag = f'"{h.hexdigest()[:16]}"'
     print(
         f"network loaded: {net.n_stops} stops, {net.n_connections} connections, "
         f"{net.fp_target.shape[0]} footpaths, service date {meta['service_date']} "
