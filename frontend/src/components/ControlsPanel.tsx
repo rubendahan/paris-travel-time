@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Bounds, CombineMode, Direction, TransitMode, TravelTimeResult } from '../lib/types'
 import { ALL_MODES } from '../lib/types'
 import { clockDisplay } from '../App'
@@ -49,13 +50,30 @@ export default function ControlsPanel({
   const toggleMode = (m: TransitMode) =>
     onModesChange(modes.includes(m) ? modes.filter((x) => x !== m) : [...modes, m])
 
+  // On phones the panel is full width and would swallow the map; start folded
+  // down to just its title bar, with a tap to expand. Always open from sm up.
+  const [collapsed, setCollapsed] = useState(
+    typeof window !== 'undefined' && window.innerWidth < 640,
+  )
+
   return (
-    <div className="w-72 rounded-lg border border-gray-200 bg-white/95 p-3 shadow-md backdrop-blur">
-      <div className="mb-2 flex items-center justify-between">
+    <div className="w-full rounded-lg border border-gray-200 bg-white/95 p-3 shadow-md backdrop-blur sm:w-72">
+      <div className="flex items-center justify-between gap-2">
         <h1 className="text-sm font-bold text-gray-800">Paris Travel Time</h1>
-        <AlgoExplainer />
+        <div className="flex items-center gap-2">
+          <AlgoExplainer />
+          <button
+            onClick={() => setCollapsed((c) => !c)}
+            aria-label={collapsed ? 'Expand controls' : 'Collapse controls'}
+            aria-expanded={!collapsed}
+            className="flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-[11px] font-bold text-gray-500 hover:bg-gray-100 sm:hidden"
+          >
+            {collapsed ? '▾' : '▴'}
+          </button>
+        </div>
       </div>
 
+      <div className={`mt-2 ${collapsed ? 'hidden sm:block' : 'block'}`}>
       {sourceCount === 0 && (
         <p className="mb-2 text-xs text-gray-600">
           Click the map (or search an address) to drop a start. Right-click for the detailed
@@ -136,6 +154,7 @@ export default function ControlsPanel({
         {!loading && !error && !result && sourceCount > 0 && modes.length === 0 && (
           <span className="text-orange-600">Select at least one mode.</span>
         )}
+      </div>
       </div>
     </div>
   )

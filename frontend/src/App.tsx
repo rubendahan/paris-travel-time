@@ -168,9 +168,11 @@ export default function App() {
         </div>
       )}
 
-      <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex items-start justify-between gap-2 p-3">
+      <div className="pointer-events-none absolute inset-x-0 top-0 z-[1000] flex flex-col gap-2 p-3 sm:flex-row sm:items-start sm:justify-between">
         {/* -m/p halo: near-miss clicks around the controls are absorbed
-            instead of falling through to the map and dropping a marker */}
+            instead of falling through to the map and dropping a marker.
+            Stacked on phones (the two panels can't fit side by side), a row
+            from sm up. */}
         <div className="pointer-events-auto -m-3 p-3">
           <SearchBox onSelect={addSource} />
         </div>

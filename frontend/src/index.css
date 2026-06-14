@@ -7,6 +7,12 @@ body,
   margin: 0;
 }
 
+/* Follow the visible viewport as the mobile address bar shows/hides, instead
+   of the larger layout viewport that leaves the map taller than the screen. */
+#root {
+  height: 100dvh;
+}
+
 .leaflet-container {
   height: 100%;
   width: 100%;
