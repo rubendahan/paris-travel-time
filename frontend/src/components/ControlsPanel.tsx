@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Bounds, CombineMode, Direction, TransitMode, TravelTimeResult } from '../lib/types'
 import { ALL_MODES } from '../lib/types'
-import { clockDisplay } from '../App'
+import { clockDisplay } from '../lib/time'
 import BoundsSliders from './BoundsSliders'
 import AlgoExplainer from './AlgoExplainer'
 

@@ -31,10 +31,31 @@ export default function SearchBox({ onSelect }: { onSelect: (pos: LatLng, name: 
   const timer = useRef<number>(undefined)
   const ctrl = useRef<AbortController | null>(null)
 
-  useEffect(() => {
+  // cancel any pending debounce / in-flight request on unmount
+  useEffect(
+    () => () => {
+      window.clearTimeout(timer.current)
+      ctrl.current?.abort()
+    },
+    [],
+  )
+
+  const reset = () => {
     window.clearTimeout(timer.current)
     ctrl.current?.abort()
-    if (query.trim().length < 3) {
+    setResults([])
+    setActive(-1)
+    setLoading(false)
+  }
+
+  // Drive the search straight from the input event (rather than an effect on
+  // `query`): the debounce timer and abort controller are the external system
+  // here, so there's no state to "synchronize" through a render.
+  const onChange = (value: string) => {
+    setQuery(value)
+    window.clearTimeout(timer.current)
+    ctrl.current?.abort()
+    if (value.trim().length < 3) {
       setResults([])
       setActive(-1)
       setLoading(false)
@@ -44,7 +65,7 @@ export default function SearchBox({ onSelect }: { onSelect: (pos: LatLng, name: 
     timer.current = window.setTimeout(() => {
       const ac = new AbortController()
       ctrl.current = ac
-      fetch(`${BAN}&q=${encodeURIComponent(query)}`, { signal: ac.signal })
+      fetch(`${BAN}&q=${encodeURIComponent(value)}`, { signal: ac.signal })
         .then((r) => r.json())
         .then((d) => {
           setResults(d.features ?? [])
@@ -58,15 +79,13 @@ export default function SearchBox({ onSelect }: { onSelect: (pos: LatLng, name: 
           }
         })
     }, 250)
-    return () => window.clearTimeout(timer.current)
-  }, [query])
+  }
 
   const pick = (f: BanFeature) => {
     const [lon, lat] = f.geometry.coordinates
     onSelect({ lat, lng: lon }, f.properties.label)
     setQuery('')
-    setResults([])
-    setActive(-1)
+    reset()
   }
 
   const onKeyDown = (e: React.KeyboardEvent) => {
@@ -81,7 +100,7 @@ export default function SearchBox({ onSelect }: { onSelect: (pos: LatLng, name: 
       pick(results[Math.max(active, 0)])
     } else if (e.key === 'Escape') {
       setQuery('')
-      setResults([])
+      reset()
     }
   }
 
@@ -93,7 +112,7 @@ export default function SearchBox({ onSelect }: { onSelect: (pos: LatLng, name: 
         </span>
         <input
           value={query}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
           onKeyDown={onKeyDown}
           placeholder="Address, street, city… (Enter to pick)"
           className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-8 text-sm shadow-md outline-none focus:border-gray-500"
@@ -107,7 +126,7 @@ export default function SearchBox({ onSelect }: { onSelect: (pos: LatLng, name: 
           <button
             onClick={() => {
               setQuery('')
-              setResults([])
+              reset()
             }}
             className="absolute right-2 top-1/2 -translate-y-1/2 rounded px-1 text-gray-400 hover:text-gray-700"
             aria-label="Clear"

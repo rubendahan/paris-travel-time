@@ -8,6 +8,7 @@ import RoutePopup from './components/RoutePopup'
 import { useTravelTime } from './hooks/useTravelTime'
 import { fetchRoute, fetchStops, fetchWalkmask } from './lib/api'
 import { parseUrlState, writeUrlState } from './lib/urlState'
+import { clockDisplay } from './lib/time'
 import { MAX_SOURCES } from './lib/colors'
 import type {
   Bounds,
@@ -25,12 +26,6 @@ const ANIM_END = 26 * 60 // GTFS hours run past midnight: go up to 02:00 ("26:00
 const ANIM_STEP_MIN = 30
 const ANIM_TICK_MS = 900
 
-/** GTFS-style times can exceed 24h ("25:30" = 1:30 AM); display them mod 24. */
-export function clockDisplay(at: string): string {
-  const [h, m] = at.split(':').map(Number)
-  return `${String(h % 24).padStart(2, '0')}:${String(m).padStart(2, '0')}`
-}
-
 interface RoutePopupState {
   pos: LatLng
   route: RouteResponse | null
@@ -38,7 +33,7 @@ interface RoutePopupState {
 }
 
 export default function App() {
-  const initial = useMemo(parseUrlState, [])
+  const initial = useMemo(() => parseUrlState(), [])
   const [sources, setSources] = useState<LatLng[]>(initial.sources)
   const [departAt, setDepartAt] = useState(initial.departAt)
   const [bounds, setBounds] = useState<Bounds>(initial.bounds)
@@ -77,13 +72,12 @@ export default function App() {
     }
   }, [])
 
-  // cold-start notice, shown once the initial load takes noticeably long
+  // cold-start notice, shown once the initial load takes noticeably long.
+  // The notice is rendered only while `!catalog`, so once the catalog lands
+  // there's nothing to reset: just stop arming the timer.
   const [waking, setWaking] = useState(false)
   useEffect(() => {
-    if (catalog) {
-      setWaking(false)
-      return
-    }
+    if (catalog) return
     const id = window.setTimeout(() => setWaking(true), 2500)
     return () => window.clearTimeout(id)
   }, [catalog])
