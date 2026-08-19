@@ -15,10 +15,12 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 
-from app.core.csa import ALL_MODES_MASK, INF, csa_scan
+from app.core.csa import ALL_MODES_MASK, INF, NEG_INF, csa_scan, csa_scan_reverse
 
 BUFFER_S = 60
 T_MAX = 900
+ARRIVE_BY = 1_200  # late enough that the reverse scan has a network to chew on
+WALK_BUDGET_S = 10_000  # unbounded chains, like the reference solver
 STEP = 30  # times land on a coarse grid, so tight transfers happen often
 
 
@@ -58,12 +60,33 @@ def footpath_csr(n_stops: int, edges: dict[tuple[int, int], int]) -> tuple:
     )
 
 
-def random_network(rng: np.random.Generator) -> ToyNet:
+def walk_closure(start: int, t0: int, indptr, target, dur) -> dict[int, int]:
+    """Every stop walkable from `start`, with its arrival time (Dijkstra).
+
+    Mirrors what production hands the kernel: the initial walk out of the
+    marker is a mask-aware Dijkstra over the raster, so the stops it seeds
+    are already closed under walking.
+    """
+    best = {start: t0}
+    frontier = [start]
+    while frontier:
+        s = frontier.pop()
+        for j in range(indptr[s], indptr[s + 1]):
+            v, cand = int(target[j]), best[s] + int(dur[j])
+            if cand < best.get(v, 1 << 30):
+                best[v] = cand
+                frontier.append(v)
+    return best
+
+
+def random_network(rng: np.random.Generator, chains: bool = False) -> ToyNet:
     """A handful of stops, a few trips riding through them, some footpaths.
 
-    Footpaths are drawn as disjoint pairs: walking out of a walk can then
-    never beat the direct edge, so a single relaxation hop is all the model
-    needs. Chains of footpaths are a separate question, tested apart.
+    chains=False draws footpaths as disjoint pairs: walking out of a walk
+    can then never beat the direct edge, so a single relaxation hop is all
+    the model needs. chains=True draws an arbitrary walking graph, where
+    reaching a stop can take two or three footpaths in a row, exactly like
+    a station transfer followed by a 200 m hop in the real feed.
     """
     n_stops = int(rng.integers(4, 10))
     n_trips = int(rng.integers(2, 7))
@@ -94,19 +117,20 @@ def random_network(rng: np.random.Generator) -> ToyNet:
     order = np.argsort(np.asarray(dep_time), kind="stable")  # the kernel's invariant
 
     edges: dict[tuple[int, int], int] = {}
-    shuffled = list(rng.permutation(n_stops))
-    for a, b in zip(shuffled[::2], shuffled[1::2]):
-        if rng.random() < 0.5:
-            edges[(int(a), int(b))] = STEP * int(rng.integers(2, 6))
+    if chains:
+        for _ in range(int(rng.integers(1, n_stops))):
+            a, b = (int(x) for x in rng.choice(n_stops, size=2, replace=False))
+            edges[(min(a, b), max(a, b))] = STEP * int(rng.integers(2, 6))
+    else:
+        shuffled = list(rng.permutation(n_stops))
+        for a, b in zip(shuffled[::2], shuffled[1::2]):
+            if rng.random() < 0.5:
+                edges[(int(a), int(b))] = STEP * int(rng.integers(2, 6))
     fp_indptr, fp_target, fp_dur = footpath_csr(n_stops, edges)
 
-    # the traveller starts at one stop; production's initial walk hands the
-    # kernel every stop within a kilometer, so its footpath partner too
     start = int(rng.integers(0, n_stops))
     t0 = STEP * int(rng.integers(0, 6))
-    sources = {start: t0}
-    for j in range(fp_indptr[start], fp_indptr[start + 1]):
-        sources[int(fp_target[j])] = t0 + int(fp_dur[j])
+    sources = walk_closure(start, t0, fp_indptr, fp_target, fp_dur)
 
     return ToyNet(
         n_stops=n_stops,
@@ -171,7 +195,11 @@ def reference_arrivals(net: ToyNet, mode_mask: int = int(ALL_MODES_MASK)) -> np.
     return arr
 
 
-def kernel_arrivals(net: ToyNet, mode_mask: int = int(ALL_MODES_MASK)) -> np.ndarray:
+def kernel_arrivals(
+    net: ToyNet,
+    mode_mask: int = int(ALL_MODES_MASK),
+    walk_budget_s: int = WALK_BUDGET_S,
+) -> np.ndarray:
     arrival = np.full(net.n_stops, INF, dtype=np.int32)
     board = np.full(net.n_stops, INF, dtype=np.int32)
     for s, t in net.sources.items():
@@ -182,7 +210,10 @@ def kernel_arrivals(net: ToyNet, mode_mask: int = int(ALL_MODES_MASK)) -> np.nda
         arrival, board, np.zeros(net.n_trips, dtype=np.bool_),
         np.full(net.n_stops, -1, dtype=np.int32), np.full(net.n_stops, -1, dtype=np.int32),
         np.full(net.n_trips, -1, dtype=np.int32),
+        np.empty(net.n_stops, dtype=np.int32), np.empty(net.n_stops, dtype=np.int32),
+        np.zeros(net.n_stops, dtype=np.bool_),
         0, np.int32(T_MAX), np.int32(BUFFER_S), np.int32(mode_mask),
+        np.int32(walk_budget_s),
     )
     return arrival.astype(np.int64)
 
@@ -193,9 +224,138 @@ def test_matches_reference_solver(seed: int):
     assert list(kernel_arrivals(net)) == list(reference_arrivals(net))
 
 
+@pytest.mark.parametrize("seed", range(120))
+def test_matches_reference_solver_with_footpath_chains(seed: int):
+    net = random_network(np.random.default_rng(seed), chains=True)
+    assert list(kernel_arrivals(net)) == list(reference_arrivals(net))
+
+
+def test_a_walk_out_of_a_walk_is_taken():
+    """A --train--> B, then two footpaths in a row. No B->D edge exists."""
+    net = ToyNet(
+        n_stops=4, n_trips=1,
+        dep_stop=np.array([0], dtype=np.int32),
+        arr_stop=np.array([1], dtype=np.int32),
+        dep_time=np.array([100], dtype=np.int32),
+        arr_time=np.array([200], dtype=np.int32),
+        trip=np.array([0], dtype=np.int32),
+        conn_mode=np.array([1], dtype=np.int8),
+        **dict(zip(
+            ("fp_indptr", "fp_target", "fp_dur"),
+            footpath_csr(4, {(1, 2): 60, (2, 3): 90}),
+        )),
+        sources={0: 0},
+    )
+    assert list(kernel_arrivals(net)) == [0, 200, 260, 350]
+
+
+def test_walk_chains_stop_at_the_walking_budget():
+    """Same chain, but a budget that only pays for the first footpath."""
+    net = ToyNet(
+        n_stops=4, n_trips=1,
+        dep_stop=np.array([0], dtype=np.int32),
+        arr_stop=np.array([1], dtype=np.int32),
+        dep_time=np.array([100], dtype=np.int32),
+        arr_time=np.array([200], dtype=np.int32),
+        trip=np.array([0], dtype=np.int32),
+        conn_mode=np.array([1], dtype=np.int8),
+        **dict(zip(
+            ("fp_indptr", "fp_target", "fp_dur"),
+            footpath_csr(4, {(1, 2): 60, (2, 3): 90}),
+        )),
+        sources={0: 0},
+    )
+    assert list(kernel_arrivals(net, walk_budget_s=30)) == [0, 200, 260, INF]
+
+
 @pytest.mark.parametrize("seed", range(60))
 def test_matches_reference_solver_under_mode_filters(seed: int):
     rng = np.random.default_rng(10_000 + seed)
     net = random_network(rng)
     mask = int(rng.integers(1, 32))
     assert list(kernel_arrivals(net, mask)) == list(reference_arrivals(net, mask))
+
+
+# --- "arrive by": the same comparison, mirrored ------------------------------
+
+
+def destinations(net: ToyNet, arrive_by: int) -> dict[int, int]:
+    """Latest departure from each stop of the final walk to the destination."""
+    return {s: arrive_by - (w - min(net.sources.values())) for s, w in net.sources.items()}
+
+
+def reference_departures(
+    net: ToyNet, arrive_by: int, mode_mask: int = int(ALL_MODES_MASK)
+) -> np.ndarray:
+    """Latest departures by relaxation to a fixpoint, mirror of the forward one."""
+    dep = np.full(net.n_stops, NEG_INF, dtype=np.int64)
+    alight = np.full(net.n_stops, NEG_INF, dtype=np.int64)
+    for s, t in destinations(net, arrive_by).items():
+        dep[s] = alight[s] = t
+    t_min = arrive_by - T_MAX
+    conns_of_trip = [np.nonzero(net.trip == tr)[0] for tr in range(net.n_trips)]
+
+    changed = True
+    while changed:
+        changed = False
+        for s in range(net.n_stops):
+            if dep[s] == NEG_INF:
+                continue
+            for j in range(net.fp_indptr[s], net.fp_indptr[s + 1]):
+                s2 = int(net.fp_target[j])
+                cand = dep[s] - int(net.fp_dur[j])  # leave s2 early enough to walk to s
+                if cand > dep[s2]:
+                    dep[s2], changed = cand, True
+                if cand > alight[s2]:
+                    alight[s2], changed = cand, True
+        for conns in conns_of_trip:
+            onboard = False
+            for i in conns[::-1]:  # backwards along the trip
+                if net.arr_time[i] < t_min:
+                    continue
+                if not (mode_mask >> int(net.conn_mode[i])) & 1:
+                    continue
+                if alight[net.arr_stop[i]] >= net.arr_time[i]:
+                    onboard = True
+                if not onboard:
+                    continue
+                u = int(net.dep_stop[i])
+                td = int(net.dep_time[i])
+                if td > dep[u]:
+                    dep[u], changed = td, True
+                if td - BUFFER_S > alight[u]:
+                    alight[u], changed = td - BUFFER_S, True
+    return dep
+
+
+def kernel_departures(
+    net: ToyNet, arrive_by: int, mode_mask: int = int(ALL_MODES_MASK)
+) -> np.ndarray:
+    dep = np.full(net.n_stops, NEG_INF, dtype=np.int32)
+    alight = np.full(net.n_stops, NEG_INF, dtype=np.int32)
+    for s, t in destinations(net, arrive_by).items():
+        dep[s] = alight[s] = t
+    order_desc = np.argsort(net.arr_time, kind="stable").astype(np.int32)[::-1].copy()
+    csa_scan_reverse(
+        order_desc,
+        net.dep_stop, net.arr_stop, net.dep_time, net.arr_time, net.trip, net.conn_mode,
+        net.fp_indptr, net.fp_target, net.fp_dur,
+        dep, alight, np.zeros(net.n_trips, dtype=np.bool_),
+        np.empty(net.n_stops, dtype=np.int32), np.empty(net.n_stops, dtype=np.int32),
+        np.zeros(net.n_stops, dtype=np.bool_),
+        0, np.int32(arrive_by - T_MAX), np.int32(BUFFER_S), np.int32(mode_mask),
+        np.int32(WALK_BUDGET_S),
+    )
+    return dep.astype(np.int64)
+
+
+@pytest.mark.parametrize("seed", range(120))
+def test_reverse_matches_reference_solver(seed: int):
+    net = random_network(np.random.default_rng(seed))
+    assert list(kernel_departures(net, ARRIVE_BY)) == list(reference_departures(net, ARRIVE_BY))
+
+
+@pytest.mark.parametrize("seed", range(120))
+def test_reverse_matches_reference_solver_with_footpath_chains(seed: int):
+    net = random_network(np.random.default_rng(seed), chains=True)
+    assert list(kernel_departures(net, ARRIVE_BY)) == list(reference_departures(net, ARRIVE_BY))

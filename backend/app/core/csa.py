@@ -11,6 +11,12 @@ Journey extraction: the kernel records, for each improved stop, the
 connection (or footpath origin) that improved it, plus the first connection
 where each trip was boarded, which is enough to rebuild a valid journey
 backwards.
+
+Footpaths: the graph is NOT transitively closed (a same-station transfer
+followed by a 200 m street hop has no direct edge), so every improvement
+walks away in a small cascade rather than a single hop, up to
+config.MAX_TRANSFER_WALK_S of cumulated walking. The cascade runs on three
+scratch arrays the callers own, to keep the kernel allocation-free.
 """
 
 import numpy as np
@@ -59,7 +65,8 @@ def csa_scan(
     fp_indptr, fp_target, fp_dur,
     arrival, board, trip_reached,
     pred_conn, pred_from, trip_board_conn,
-    start_idx, t_max, interchange_s, mode_mask,
+    fp_stack, fp_walk, fp_queued,
+    start_idx, t_max, interchange_s, mode_mask, walk_budget_s,
 ):
     for i in range(start_idx, dep_stop.shape[0]):
         dt = dep_time[i]
@@ -80,15 +87,40 @@ def csa_scan(
                 pred_from[s] = -1
                 if a + interchange_s < board[s]:
                     board[s] = a + interchange_s
-                for j in range(fp_indptr[s], fp_indptr[s + 1]):
-                    s2 = fp_target[j]
-                    a2 = a + fp_dur[j]
-                    if a2 < arrival[s2]:
-                        arrival[s2] = a2
-                        pred_conn[s2] = -1
-                        pred_from[s2] = s
-                        if a2 < board[s2]:
-                            board[s2] = a2
+                # walk away from s, then away from whatever that walk
+                # improved: footpaths are not transitively closed, so a
+                # single hop misses a station transfer followed by a street
+                # hop. Chains stop at walk_budget_s of cumulated walking: a
+                # transfer is not a hike, and the dense core is one huge
+                # walking component, where unbounded cascades cost two orders
+                # of magnitude. fp_queued holds one entry per stop, so
+                # fp_stack never exceeds n_stops.
+                top = 0
+                fp_stack[top] = s
+                fp_walk[top] = 0
+                top += 1
+                fp_queued[s] = True
+                while top > 0:
+                    top -= 1
+                    u = fp_stack[top]
+                    wu = fp_walk[top]
+                    fp_queued[u] = False
+                    au = arrival[u]
+                    for j in range(fp_indptr[u], fp_indptr[u + 1]):
+                        s2 = fp_target[j]
+                        a2 = au + fp_dur[j]
+                        if a2 < arrival[s2]:
+                            arrival[s2] = a2
+                            pred_conn[s2] = -1
+                            pred_from[s2] = u
+                            if a2 < board[s2]:
+                                board[s2] = a2
+                            w2 = wu + fp_dur[j]
+                            if w2 <= walk_budget_s and not fp_queued[s2]:
+                                fp_queued[s2] = True
+                                fp_stack[top] = s2
+                                fp_walk[top] = w2
+                                top += 1
 
 
 @njit(cache=True)
@@ -96,7 +128,8 @@ def csa_scan_reverse(
     order, dep_stop, arr_stop, dep_time, arr_time, trip, conn_mode,
     fp_indptr, fp_target, fp_dur,
     depart, alight, trip_reached,
-    start_pos, t_min, interchange_s, mode_mask,
+    fp_stack, fp_walk, fp_queued,
+    start_pos, t_min, interchange_s, mode_mask, walk_budget_s,
 ):
     """Mirror of csa_scan on the time-reversed network: latest departure
     from every stop to reach the initialized stops in time.
@@ -120,13 +153,31 @@ def csa_scan_reverse(
                 depart[s] = td
                 if td - interchange_s > alight[s]:
                     alight[s] = td - interchange_s
-                for j in range(fp_indptr[s], fp_indptr[s + 1]):
-                    s2 = fp_target[j]
-                    t2 = td - fp_dur[j]
-                    if t2 > depart[s2]:
-                        depart[s2] = t2
-                        if t2 > alight[s2]:
-                            alight[s2] = t2
+                # mirror of the forward cascade, same walking budget
+                top = 0
+                fp_stack[top] = s
+                fp_walk[top] = 0
+                top += 1
+                fp_queued[s] = True
+                while top > 0:
+                    top -= 1
+                    u = fp_stack[top]
+                    wu = fp_walk[top]
+                    fp_queued[u] = False
+                    tu = depart[u]
+                    for j in range(fp_indptr[u], fp_indptr[u + 1]):
+                        s2 = fp_target[j]
+                        t2 = tu - fp_dur[j]
+                        if t2 > depart[s2]:
+                            depart[s2] = t2
+                            if t2 > alight[s2]:
+                                alight[s2] = t2
+                            w2 = wu + fp_dur[j]
+                            if w2 <= walk_budget_s and not fp_queued[s2]:
+                                fp_queued[s2] = True
+                                fp_stack[top] = s2
+                                fp_walk[top] = w2
+                                top += 1
 
 
 NEG_INF = np.int32(-(2**31) + 1)
@@ -144,6 +195,9 @@ def run_scan_reverse(
     depart = np.full(n_stops, NEG_INF, dtype=np.int32)
     alight = np.full(n_stops, NEG_INF, dtype=np.int32)
     trip_reached = np.zeros(network.n_trips, dtype=np.bool_)
+    fp_stack = np.empty(n_stops, dtype=np.int32)
+    fp_walk = np.empty(n_stops, dtype=np.int32)
+    fp_queued = np.zeros(n_stops, dtype=np.bool_)
 
     for lat, lon in destinations:
         idx, walk_s = source_walks(network, lat, lon)
@@ -163,7 +217,9 @@ def run_scan_reverse(
         network.trip, network.conn_mode,
         network.fp_indptr, network.fp_target, network.fp_dur,
         depart, alight, trip_reached,
+        fp_stack, fp_walk, fp_queued,
         start_pos, t_min, np.int32(config.INTERCHANGE_BUFFER_S), mode_mask,
+        np.int32(config.MAX_TRANSFER_WALK_S),
     )
     return depart
 
@@ -215,6 +271,9 @@ def run_scan(
     pred_conn = np.full(n_stops, -1, dtype=np.int32)
     pred_from = np.full(n_stops, -1, dtype=np.int32)
     trip_board_conn = np.full(network.n_trips, -1, dtype=np.int32)
+    fp_stack = np.empty(n_stops, dtype=np.int32)
+    fp_walk = np.empty(n_stops, dtype=np.int32)
+    fp_queued = np.zeros(n_stops, dtype=np.bool_)
 
     for lat, lon in sources:
         idx, walk_s = source_walks(network, lat, lon)
@@ -231,7 +290,9 @@ def run_scan(
         network.fp_indptr, network.fp_target, network.fp_dur,
         arrival, board, trip_reached,
         pred_conn, pred_from, trip_board_conn,
+        fp_stack, fp_walk, fp_queued,
         start_idx, t_max, np.int32(config.INTERCHANGE_BUFFER_S), mode_mask,
+        np.int32(config.MAX_TRANSFER_WALK_S),
     )
     return ScanResult(arrival, pred_conn, pred_from, trip_board_conn, depart_secs)
 

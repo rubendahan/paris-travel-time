@@ -40,6 +40,19 @@ FP_TARGET = np.array([4, 2], dtype=np.int32)
 FP_DUR = np.array([120, 120], dtype=np.int32)
 
 
+# generous enough that the toy footpaths never hit the walking budget
+WALK_BUDGET_S = 10_000
+
+
+def fp_scratch() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """Scratch arrays for the kernel's footpath cascade, owned by the caller."""
+    return (
+        np.empty(N_STOPS, dtype=np.int32),
+        np.empty(N_STOPS, dtype=np.int32),
+        np.zeros(N_STOPS, dtype=np.bool_),
+    )
+
+
 def run(start_stop: int, depart: int, t_max: int = 10_000, mode_mask=ALL_MODES_MASK):
     arrival = np.full(N_STOPS, INF, dtype=np.int32)
     board = np.full(N_STOPS, INF, dtype=np.int32)
@@ -52,7 +65,9 @@ def run(start_stop: int, depart: int, t_max: int = 10_000, mode_mask=ALL_MODES_M
         FP_INDPTR, FP_TARGET, FP_DUR,
         arrival, board, np.zeros(N_TRIPS, dtype=np.bool_),
         pred_conn, pred_from, trip_board_conn,
+        *fp_scratch(),
         0, np.int32(t_max), np.int32(60), np.int32(mode_mask),
+        np.int32(WALK_BUDGET_S),
     )
     return arrival, pred_conn, pred_from, trip_board_conn
 
@@ -87,7 +102,9 @@ def test_interchange_buffer_blocks_tight_transfer():
         arrival, board, np.zeros(N_TRIPS, dtype=np.bool_),
         np.full(N_STOPS, -1, dtype=np.int32), np.full(N_STOPS, -1, dtype=np.int32),
         np.full(N_TRIPS, -1, dtype=np.int32),
+        *fp_scratch(),
         0, np.int32(10_000), np.int32(60), ALL_MODES_MASK,
+        np.int32(WALK_BUDGET_S),
     )
     assert arrival[3] == INF  # board=1510 > dep 1500: buffer blocks the transfer
 
@@ -130,7 +147,9 @@ def run_reverse(dest_stop: int, arrive: int, t_min: int = 0, mode_mask=ALL_MODES
         order_desc, DEP_STOP, ARR_STOP, DEP_TIME, ARR_TIME, TRIP, CONN_MODE,
         FP_INDPTR, FP_TARGET, FP_DUR,
         depart, alight, np.zeros(N_TRIPS, dtype=np.bool_),
+        *fp_scratch(),
         0, np.int32(t_min), np.int32(60), np.int32(mode_mask),
+        np.int32(WALK_BUDGET_S),
     )
     return depart
 

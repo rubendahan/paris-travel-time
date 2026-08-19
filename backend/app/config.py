@@ -7,6 +7,9 @@ WALK_SPEED_M_PER_MIN = 80.0
 MAX_SOURCE_WALK_M = 1000.0
 MAX_TRAVEL_MINS = 100
 INTERCHANGE_BUFFER_S = 60
+# footpaths are not transitively closed, so a transfer may chain several
+# of them, up to this much cumulated walking (0 = a single hop)
+MAX_TRANSFER_WALK_S = 300
 
 # Footpath generation (ingestion)
 FOOTPATH_RADIUS_M = 200.0
