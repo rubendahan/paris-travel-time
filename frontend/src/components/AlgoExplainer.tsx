@@ -213,9 +213,12 @@ export default function AlgoExplainer() {
             <P>
               The scan delivers 36,071 arrival times, not an image yet. The client finishes the
               job: from every reached stop, the remaining time spreads on foot over a grid of
-              the visible viewport (bridges and rivers still honored), then the colored bands
-              are pulled out with marching squares. The sliders and the day animation only redo
-              this local part: as long as the marker stays put, no request leaves the browser.
+              the visible viewport (bridges and rivers still honored), then every cell of that
+              grid is painted with the color of its band into a canvas, laid over the map as a
+              single image. Bands as pixels rather than as polygons: no giant concave rings for
+              the map library to mangle, and the browser's own upscaling smooths the edges. The
+              sliders and the day animation only redo this local part: as long as the marker
+              stays put, no request leaves the browser.
             </P>
 
             <p className="mt-3 text-[10px] text-gray-400">

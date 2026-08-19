@@ -12,11 +12,12 @@ const M_PER_DEG_LAT = 111_320
 const INF = 1e9
 
 /**
- * Smooth isochrone polygons.
+ * Isochrone bands, painted as a canvas image overlay (one pixel per grid
+ * cell, colored by band) rather than extracted as vector polygons.
  *
  * With a walkability mask: the travel-time field is computed ONCE at the
  * mask's native 30 m resolution (bridges and rivers exact at any zoom, see
- * walkfield.ts) and the viewport merely resamples it before contouring.
+ * walkfield.ts) and the viewport merely resamples it before painting.
  * Without a mask: chamfer distance transform on the viewport grid.
  */
 export default function IsochronesLayer({
