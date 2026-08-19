@@ -200,17 +200,26 @@ def build_footpaths(
                 add(a, b, config.SAME_PARENT_TRANSFER_S)
 
     # 3) radius neighbours via cell grid (~200m cells)
+    # Degrees -> meters comes from the feed's own coordinates: a meridian
+    # degree is ~constant, a parallel degree shrinks with cos(lat). Nothing
+    # here may assume the latitude of Paris.
     lats = stops["stop_lat"].to_numpy()
     lons = stops["stop_lon"].to_numpy()
-    cell_deg = config.FOOTPATH_RADIUS_M / 111_000.0
-    cx = np.floor(lons / cell_deg).astype(np.int64)
-    cy = np.floor(lats / cell_deg).astype(np.int64)
+    m_per_deg = 111_000.0
+    coslat = np.cos(np.radians(lats))  # per stop: exact within a 200 m radius
+    # A cell must be at least FOOTPATH_RADIUS_M wide in BOTH directions, or a
+    # neighbour due east could sit two cells away and never be looked at. The
+    # feed's highest latitude has the narrowest parallel degree, so it sizes
+    # the longitude cell for everyone.
+    cos_min = max(float(np.cos(np.radians(np.abs(lats).max()))), 0.05)
+    cell_lat = config.FOOTPATH_RADIUS_M / m_per_deg
+    cell_lon = cell_lat / cos_min
+    cx = np.floor(lons / cell_lon).astype(np.int64)
+    cy = np.floor(lats / cell_lat).astype(np.int64)
     grid = defaultdict(list)
     for i in range(n):
         grid[(cx[i], cy[i])].append(i)
 
-    coslat = np.cos(np.radians(48.85))
-    m_per_deg = 111_000.0
     for i in range(n):
         cands = []
         for dx in (-1, 0, 1):
@@ -222,7 +231,7 @@ def build_footpaths(
             continue
         dist = np.hypot(
             (lats[cands] - lats[i]) * m_per_deg,
-            (lons[cands] - lons[i]) * m_per_deg * coslat,
+            (lons[cands] - lons[i]) * m_per_deg * coslat[i],
         )
         near = cands[dist <= config.FOOTPATH_RADIUS_M]
         ndist = dist[dist <= config.FOOTPATH_RADIUS_M]
