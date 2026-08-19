@@ -1,8 +1,9 @@
 """Build a walkability raster for Île-de-France from OpenStreetMap.
 
-Blocked cells: water bodies (Seine, Marne, canals, lakes >= 1 ha) and railway
-land. Pedestrian-usable bridges are carved back as walkable so isochrones
-cross the river exactly where people can.
+Blocked cells: water bodies only (Seine, Marne, canals, lakes >= 1 ha).
+Pedestrian-usable bridges are carved back as walkable so isochrones cross
+the river exactly where people can. An early version also blocked railway
+land; see water_query for why that was dropped.
 
 The result is tiny (~320 kB packed) and stable over time, so it is committed
 to the repo (backend/assets/walkmask.npz) rather than rebuilt per deploy.
@@ -68,7 +69,7 @@ out geom;
 
 
 def bridge_query(bbox: tuple) -> str:
-    # bridges cross water, tunnels cross rail land: both reopen the mask
+    # bridges (and the occasional underpass) cross the water: both reopen the mask
     b = f"{bbox[0]},{bbox[1]},{bbox[2]},{bbox[3]}"
     return f"""
 [out:json][timeout:180];
@@ -263,8 +264,8 @@ def main() -> None:
             draw.line(pts, fill=1, width=2)
     print(f"  {len(bridge_elements):,} bridges carved")
 
-    # every GTFS stop must live on a walkable cell (platforms often sit in
-    # the middle of blocked railway land)
+    # every GTFS stop must live on a walkable cell (riverside platforms and
+    # stops on bridges often fall inside a water polygon or a river stroke)
     stops_pq = Path(__file__).resolve().parent.parent / "data" / "stops.parquet"
     if stops_pq.exists():
         import pyarrow.parquet as pq
