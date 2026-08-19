@@ -24,13 +24,15 @@ from app.core.csa import (
 
 N_STOPS, N_TRIPS = 6, 3
 
-# connections sorted by dep_time
+# connections sorted by dep_time, as the kernel requires (it breaks out of
+# the loop on the first departure past t_max)
+# order: A->B, B->C, B->D, E->F
 DEP_STOP = np.array([0, 1, 1, 4], dtype=np.int32)
-ARR_STOP = np.array([1, 3, 2, 5], dtype=np.int32)
-DEP_TIME = np.array([1000, 1500, 1360, 1900], dtype=np.int32)
-ARR_TIME = np.array([1300, 1800, 1600, 2200], dtype=np.int32)
-TRIP = np.array([0, 1, 0, 2], dtype=np.int32)
-CONN_MODE = np.array([MODE_METRO, MODE_BUS, MODE_METRO, MODE_RAIL], dtype=np.int8)
+ARR_STOP = np.array([1, 2, 3, 5], dtype=np.int32)
+DEP_TIME = np.array([1000, 1360, 1500, 1900], dtype=np.int32)
+ARR_TIME = np.array([1300, 1600, 1800, 2200], dtype=np.int32)
+TRIP = np.array([0, 0, 1, 2], dtype=np.int32)
+CONN_MODE = np.array([MODE_METRO, MODE_METRO, MODE_BUS, MODE_RAIL], dtype=np.int8)
 
 # footpaths CSR: C(2) <-> E(4), 120 s
 FP_INDPTR = np.array([0, 0, 0, 1, 1, 2, 2], dtype=np.int32)
@@ -90,9 +92,14 @@ def test_interchange_buffer_blocks_tight_transfer():
     assert arrival[3] == INF  # board=1510 > dep 1500: buffer blocks the transfer
 
 
+def test_fixture_is_sorted_by_departure():
+    assert np.all(np.diff(DEP_TIME) >= 0)  # the kernel's break relies on it
+
+
 def test_t_max_pruning():
     arrival, *_ = run(0, 900, t_max=1400)
     assert arrival[1] == 1300
+    assert arrival[2] == 1600  # B->C departs 1360, still under t_max
     assert arrival[3] == INF  # trip 1 departs after t_max
 
 
@@ -153,5 +160,5 @@ def test_predecessors_rebuild_journey():
     # E reached on foot from C
     assert pred_conn[4] == -1 and pred_from[4] == 2
     # C reached by trip 0, boarded at A: its first connection is index 0
-    assert pred_conn[2] == 2 and trip_board_conn[0] == 0
+    assert pred_conn[2] == 1 and trip_board_conn[0] == 0
     assert DEP_STOP[trip_board_conn[0]] == 0  # boarding stop of trip 0 is A
