@@ -200,7 +200,7 @@ def run_scan_reverse(
     fp_queued = np.zeros(n_stops, dtype=np.bool_)
 
     for lat, lon in destinations:
-        idx, walk_s = source_walks(network, lat, lon)
+        idx, walk_s = walk_from_point(network, lat, lon)
         t0 = arrive_secs - walk_s
         np.maximum.at(depart, idx, t0)
         np.maximum.at(alight, idx, t0)
@@ -237,20 +237,24 @@ class ScanResult:
         self.depart_secs = depart_secs
 
 
-def source_walks(
-    network, lat: float, lon: float
+def walk_from_point(
+    network, lat: float, lon: float, radius_m: float = config.MAX_SOURCE_WALK_M
 ) -> tuple[np.ndarray, np.ndarray]:
-    """(stop indices, walk seconds) from a coordinate to its nearby stops.
+    """(stop indices, walk seconds) between a coordinate and its nearby stops.
 
     Mask-aware when the walkability raster covers the point (the river is
-    only crossable at bridges); crow-fly fallback otherwise.
+    only crossable at bridges); crow-fly fallback otherwise. Walking is
+    symmetric, so the same function serves the initial walk out of a marker
+    and the final walk into a clicked destination.
     """
     idx, dist = stops_within_radius(
-        lat, lon, config.MAX_SOURCE_WALK_M, network.stop_lats, network.stop_lons
+        lat, lon, radius_m, network.stop_lats, network.stop_lons
     )
     wm = getattr(network, "walkmask", None)
     if wm is not None and idx.size:
-        masked = walk_seconds_from(wm, lat, lon, idx, network.stop_lats, network.stop_lons)
+        masked = walk_seconds_from(
+            wm, lat, lon, idx, network.stop_lats, network.stop_lons, radius_m
+        )
         if masked is not None:
             return masked
     return idx, (dist / config.WALK_SPEED_M_PER_MIN * 60.0).astype(np.int32)
@@ -276,7 +280,7 @@ def run_scan(
     fp_queued = np.zeros(n_stops, dtype=np.bool_)
 
     for lat, lon in sources:
-        idx, walk_s = source_walks(network, lat, lon)
+        idx, walk_s = walk_from_point(network, lat, lon)
         t0 = depart_secs + walk_s
         np.minimum.at(arrival, idx, t0)
         np.minimum.at(board, idx, t0)

@@ -83,12 +83,15 @@ def walk_seconds_from(
     stop_idx: np.ndarray,
     stop_lats: np.ndarray,
     stop_lons: np.ndarray,
+    budget_m: float = config.MAX_SOURCE_WALK_M,
 ) -> tuple[np.ndarray, np.ndarray] | None:
-    """Mask-aware walking times from (lat, lon) to candidate stops.
+    """Mask-aware walking times between (lat, lon) and candidate stops.
 
-    Returns (kept stop indices, walk seconds), or None when the source is
+    Returns (kept stop indices, walk seconds), or None when the point is
     outside the mask (caller falls back to crow-fly). Stops across blocked
     cells (e.g. the river) are dropped unless reachable within the budget.
+    Walking is symmetric, so this serves the walk out of a marker as well as
+    the walk into a destination.
     """
     src = wm.cell(lat, lon)
     if src is None:
@@ -97,8 +100,8 @@ def walk_seconds_from(
     if src is None:
         return None
 
-    # subgrid Dijkstra around the source, budget = max source walk
-    reach_cells = int(config.MAX_SOURCE_WALK_M / wm.cell_m) + 2
+    # subgrid Dijkstra around the point, bounded by the walking budget
+    reach_cells = int(budget_m / wm.cell_m) + 2
     y0 = max(0, src[0] - reach_cells)
     y1 = min(wm.h, src[0] + reach_cells + 1)
     x0 = max(0, src[1] - reach_cells)
@@ -110,7 +113,7 @@ def walk_seconds_from(
     start = sy * sw + sx
     dist[start] = 0.0
     ortho, diag = wm.cell_m, wm.cell_m * math.sqrt(2.0)
-    limit = config.MAX_SOURCE_WALK_M * 1.3  # slack for detours via bridges
+    limit = budget_m * 1.3  # slack for detours via bridges
     heap = [(0.0, start)]
     while heap:
         d, k = heapq.heappop(heap)

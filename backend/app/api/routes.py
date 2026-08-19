@@ -11,8 +11,8 @@ from app.core.csa import (
     mode_mask_from_names,
     query_one_to_all,
     run_scan,
+    walk_from_point,
 )
-from app.core.geo import stops_within_radius
 
 router = APIRouter()
 
@@ -20,6 +20,8 @@ LATLNG_RE = re.compile(r"^(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)$")
 TIME_RE = re.compile(r"^(\d{1,2}):(\d{2})$")
 
 MODE_LABELS = ["Tram", "Metro", "Train/RER", "Bus", "Transit"]
+
+DEST_WALK_M = 800.0  # how far /route may walk from the last stop to the click
 
 
 def parse_at(at: str) -> int:
@@ -158,10 +160,12 @@ def route(
 
     scan = run_scan(net, sources, depart_secs, config.MAX_TRAVEL_MINS, mode_mask)
 
-    cand, dist = stops_within_radius(to_lat, to_lon, 800.0, net.stop_lats, net.stop_lons)
+    # mask-aware like the initial walk: a stop 100 m away across the Seine
+    # is not a place to get off, whatever the crow-fly distance says
+    cand, walk_out = walk_from_point(net, to_lat, to_lon, DEST_WALK_M)
     if cand.size == 0:
-        raise HTTPException(404, "no stop within 800 m of the destination point")
-    walk_out_s = (dist / config.WALK_SPEED_M_PER_MIN * 60.0).astype(np.int64)
+        raise HTTPException(404, f"no stop within {DEST_WALK_M:.0f} m of the destination point")
+    walk_out_s = walk_out.astype(np.int64)
     arr = scan.arrival[cand].astype(np.int64)
     total = np.where(arr >= INF, np.int64(INF), arr + walk_out_s)
     best = int(np.argmin(total))
