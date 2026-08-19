@@ -133,9 +133,12 @@ export default function AlgoExplainer() {
               connection, the array holds nothing but the marker and the initial walk.
               Preserved after that: a connection can only create arrivals later than its own
               departure (walking too, it only ever adds minutes), so it cannot rewrite the
-              past, and everything departing earlier has already spoken. A vehicle that leaves
-              later cannot drop you off earlier: time moves forward, and that is the whole
-              proof.
+              past, and everything departing earlier has already spoken. Beware the tempting
+              shortcut, though: a vehicle leaving later can perfectly well arrive earlier than
+              one that left before it, an express overtakes an omnibus all the time. What it
+              cannot do is drop you off <em>before its own departure</em>, and that is all the
+              invariant needs: nothing still unread can improve an arrival early enough to
+              change a boarding decision the cursor is taking now.
             </P>
             <InvariantFig />
             <P>
