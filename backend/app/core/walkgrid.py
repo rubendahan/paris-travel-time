@@ -1,6 +1,6 @@
 """Walkability mask: load, serve, and source-walk initialization.
 
-The mask is a coarse (60 m) raster of Île-de-France where water and railway
+The mask is a coarse (30 m) raster of Île-de-France where water and railway
 land are blocked and pedestrian bridges are walkable. It refines the two
 crow-fly approximations: the initial walk from a marker to its nearby stops
 (here), and the client-side final-walk field (served via /walkmask).
