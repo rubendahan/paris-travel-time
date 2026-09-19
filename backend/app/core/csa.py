@@ -206,9 +206,11 @@ def run_scan_reverse(
         np.maximum.at(alight, idx, t0)
 
     t_min = np.int32(arrive_secs - max_mins * 60)
-    # connections arriving after T occupy the head of the desc order: skip them
+    # connections arriving after T occupy the head of the desc order: skip them.
+    # int32 key: a Python int makes numpy upcast the whole 3M-entry array to
+    # int64 (a 24 MB copy per query) just to binary-search it
     start_pos = network.n_connections - int(
-        np.searchsorted(network.arr_sorted, arrive_secs, side="right")
+        np.searchsorted(network.arr_sorted, np.int32(arrive_secs), side="right")
     )
 
     csa_scan_reverse(
@@ -286,7 +288,8 @@ def run_scan(
         np.minimum.at(board, idx, t0)
 
     t_max = np.int32(depart_secs + max_mins * 60)
-    start_idx = int(np.searchsorted(network.dep_time, depart_secs, side="left"))
+    # int32 key, see run_scan_reverse: avoids a 24 MB int64 copy per query
+    start_idx = int(np.searchsorted(network.dep_time, np.int32(depart_secs), side="left"))
 
     csa_scan(
         network.dep_stop, network.arr_stop, network.dep_time, network.arr_time,
