@@ -21,8 +21,10 @@ export async function fetchWalkmask(): Promise<Walkmask | null> {
   return { w: j.w, h: j.h, south: j.south, west: j.west, north: j.north, east: j.east, data }
 }
 
-export async function fetchStops(): Promise<StopsCatalog> {
-  const res = await fetch(`${API_BASE}/stops`)
+// fresh = bypass the HTTP cache: a revalidation would answer 304 and hand
+// back the very body we are trying to replace
+export async function fetchStops(fresh = false): Promise<StopsCatalog> {
+  const res = await fetch(`${API_BASE}/stops`, fresh ? { cache: 'reload' } : undefined)
   if (!res.ok) throw new Error(`GET /stops failed: ${res.status}`)
   return res.json()
 }

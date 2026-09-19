@@ -46,7 +46,20 @@ export default function App() {
   const [routePopup, setRoutePopup] = useState<RoutePopupState | null>(null)
   const routeSeq = useRef(0)
 
-  const { data, loading, error } = useTravelTime(sources, departAt, combine, modes, direction)
+  const { data: rawData, loading, error } = useTravelTime(sources, departAt, combine, modes, direction)
+
+  // A redeploy can rebuild the network under an open tab: fresh /traveltime
+  // idx would then index into the old catalog and scatter times over random
+  // stops. Hold such results back and refetch the catalog they belong to.
+  const stale = !!(catalog && rawData?.stopsVersion && rawData.stopsVersion !== catalog.version)
+  const data = stale ? null : rawData
+  const refetchedFor = useRef<string | null>(null)
+  useEffect(() => {
+    const want = rawData?.stopsVersion
+    if (!stale || !want || refetchedFor.current === want) return
+    refetchedFor.current = want // once per version: never loop on a mismatch
+    fetchStops(true).then(setCatalog).catch(() => {})
+  }, [stale, rawData])
 
   // Render's free tier puts the API to sleep after 15 idle minutes; while it
   // boots, the first fetch can hang for a minute or fail outright. Retry until

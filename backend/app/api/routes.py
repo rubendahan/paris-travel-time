@@ -75,6 +75,7 @@ def stops(request: Request, response: Response):
     response.headers["ETag"] = net.stops_etag
     response.headers["Cache-Control"] = "no-cache"
     return {
+        "version": net.stops_etag,
         "ids": net.stop_ids,
         "names": net.stop_names,
         "lats": net.stop_lats.round(6).tolist(),
@@ -126,6 +127,9 @@ def traveltime(
     return {
         "departAt": at,
         "serviceDate": net.meta["service_date"],
+        # idx points into this exact catalog: a client holding another
+        # version (tab left open across a redeploy) must refetch /stops
+        "stopsVersion": net.stops_etag,
         "queryMs": round((time.perf_counter() - t0) * 1000, 1),
         "idx": idx.tolist(),
         "minutes": [round(float(v), 1) for v in minutes],

@@ -1,4 +1,6 @@
 export interface StopsCatalog {
+  /** content hash of the catalog; absent from responses cached before it existed */
+  version?: string
   ids: string[]
   names: string[]
   lats: number[]
@@ -8,6 +10,8 @@ export interface StopsCatalog {
 export interface TravelTimeResult {
   departAt: string
   serviceDate: string
+  /** version of the stop catalog that idx points into */
+  stopsVersion?: string
   queryMs: number
   idx: number[]
   minutes: number[]
