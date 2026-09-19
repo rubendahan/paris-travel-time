@@ -107,4 +107,4 @@ A [`render.yaml`](render.yaml) blueprint deploys both services on Render's free 
 
 Inspired by [London Travel Time](https://tflmap.onrender.com/) by Jonas Scholz.
 
-Data: [Île-de-France Mobilités](https://prim.iledefrance-mobilites.fr/) (ODbL). Tiles: [CARTO](https://carto.com/attributions) / [OpenStreetMap](https://www.openstreetmap.org/copyright). Geocoding: [Nominatim](https://nominatim.org/).
+Data: [Île-de-France Mobilités](https://prim.iledefrance-mobilites.fr/) (ODbL). Tiles: [Esri](https://www.esri.com) / [OpenStreetMap](https://www.openstreetmap.org/copyright). Geocoding: [Nominatim](https://nominatim.org/).

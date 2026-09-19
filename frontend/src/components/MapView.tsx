@@ -3,6 +3,8 @@ import { MapContainer, Pane, TileLayer, useMap, useMapEvents } from 'react-leafl
 import type { ReactNode } from 'react'
 import type { LatLng } from '../lib/types'
 
+const ESRI_CANVAS = 'https://server.arcgisonline.com/ArcGIS/rest/services/Canvas'
+
 // clicks inside a popup (e.g. the "Remove" button) bubble up to the map's
 // own click listener and would drop a new marker at the button's position.
 // By the time the map handler runs the popup may already be closed and its
@@ -76,12 +78,18 @@ export default function MapView({
       {/* base WITHOUT labels: building texture stays under the bands, while
           street/place names render in a pane ABOVE them (crisp and readable,
           and gray blocks no longer read as fake holes through the colors) */}
+      {/* Esri Light Gray Canvas: keyless (CARTO now stamps "API KEY REQUIRED"
+          on keyless tiles); served up to z16, upscaled beyond */}
       <TileLayer
-        url="https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png"
-        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        url={`${ESRI_CANVAS}/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}`}
+        maxNativeZoom={16}
+        attribution='Tiles &copy; <a href="https://www.esri.com">Esri</a> &mdash; Esri, HERE, Garmin, &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
       />
       <Pane name="labels" style={{ zIndex: 450, pointerEvents: 'none' }}>
-        <TileLayer url="https://{s}.basemaps.cartocdn.com/light_only_labels/{z}/{x}/{y}{r}.png" />
+        <TileLayer
+          url={`${ESRI_CANVAS}/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}`}
+          maxNativeZoom={16}
+        />
       </Pane>
       <ResizeFix />
       <ClickHandler onClick={onMapClick} onContextMenu={onMapContextMenu} />
